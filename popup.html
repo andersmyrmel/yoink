@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yoink - Design System Extractor</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- Header section with branding -->
+  <header>
+    <h1>🎨 Yoink</h1>
+    <p class="subtitle">Design System Extractor</p>
+  </header>
+
+  <!-- Main content area -->
+  <main>
+    <!-- Scan button to trigger style extraction -->
+    <button id="scanBtn" class="primary-btn">
+      <span class="btn-icon">🔍</span>
+      Scan Page Styles
+    </button>
+
+    <!-- Loading state (hidden by default) -->
+    <div id="loadingState" class="loading hidden">
+      <div class="spinner"></div>
+      <p>Analyzing page styles...</p>
+    </div>
+
+    <!-- Results section (hidden until scan completes) -->
+    <div id="resultsSection" class="results hidden">
+      <!-- Preview area showing generated Markdown -->
+      <div class="preview-container">
+        <h3>Design System Preview</h3>
+        <div id="markdownPreview" class="markdown-preview"></div>
+      </div>
+
+      <!-- Action buttons for copy and download -->
+      <div class="action-buttons">
+        <button id="copyBtn" class="action-btn copy-btn">
+          <span class="btn-icon">📋</span>
+          Copy to Clipboard
+        </button>
+        <button id="downloadBtn" class="action-btn download-btn">
+          <span class="btn-icon">💾</span>
+          Download .md
+        </button>
+      </div>
+
+      <!-- Success message (shown after copy/download) -->
+      <div id="successMessage" class="success-message hidden"></div>
+    </div>
+
+    <!-- Error state (shown if extraction fails) -->
+    <div id="errorState" class="error hidden">
+      <p>⚠️ Unable to extract styles from this page.</p>
+      <p class="error-detail">Try refreshing the page and scanning again.</p>
+    </div>
+  </main>
+
+  <!-- Footer with version info -->
+  <footer>
+    <p class="version">v1.0.0</p>
+  </footer>
+
+  <!-- Load popup logic -->
+  <script src="popup.js"></script>
+</body>
+</html>
