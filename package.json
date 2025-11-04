@@ -1,0 +1,30 @@
+{
+  "name": "yoink-design-system-extractor",
+  "version": "2.1.3",
+  "description": "Chrome extension to extract and analyze design system tokens from any website",
+  "scripts": {
+    "build": "tsc && npm run copy-assets",
+    "watch": "tsc --watch",
+    "copy-assets": "npm run copy-html && npm run copy-css && npm run copy-icons && npm run copy-manifest",
+    "copy-html": "cp src/popup.html dist/",
+    "copy-css": "cp src/styles/popup.css dist/",
+    "copy-icons": "cp -r icons dist/",
+    "copy-manifest": "cp manifest.json dist/",
+    "clean": "rm -rf dist && mkdir dist",
+    "dev": "npm run clean && npm run build && npm run watch",
+    "package": "npm run clean && npm run build && cd dist && zip -r ../yoink-extension.zip ."
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "chrome-extension",
+    "design-system",
+    "css-variables",
+    "design-tokens",
+    "developer-tools"
+  ],
+  "author": "Anders",
+  "license": "MIT"
+}

@@ -1,83 +1,133 @@
 # Yoink - Design System Extractor
 
-**Yoink** is a Chrome extension that scans any web page and extracts its design styles (colors, fonts, spacing) into a clean, organized Markdown design system document.
+**Yoink** is a Chrome extension that scans any web page and extracts its design system tokens into a clean, organized Markdown document.
 
-## Features
+## ✨ Features
 
-- 🎨 **One-Click Style Extraction**: Click a button to scan the current page for design tokens
-- 📋 **Copy to Clipboard**: Instantly copy the generated Markdown to your clipboard
+- 🎨 **CSS Variable Extraction**: Captures semantic CSS custom properties with theme variants
+- 🌓 **Dark Mode Detection**: Automatically detects and shows light/dark theme values
+- 📊 **Usage Tracking**: Shows how many elements use each color
+- 🔍 **Duplicate Detection**: Identifies CSS variables with the same color values
+- 📋 **Copy to Clipboard**: Instantly copy the generated Markdown
 - 💾 **Download as .md**: Save the design system as a Markdown file
 - 🚀 **No Network Calls**: Everything runs locally in your browser
 
-## Installation
+## 🚀 Installation
 
-1. **Clone or download this repository** to your local machine
-2. **Open Chrome** and navigate to `chrome://extensions/`
-3. **Enable "Developer mode"** using the toggle in the top-right corner
-4. **Click "Load unpacked"** button
-5. **Select the `yoink` folder** from your local machine
-6. The Yoink extension icon should now appear in your Chrome toolbar
+### From Source
 
-## Usage
+1. **Clone the repository**:
+   ```bash
+   git clone <your-repo-url>
+   cd yoink
+   ```
 
-1. **Navigate to any website** you want to extract styles from
-2. **Click the Yoink extension icon** in your Chrome toolbar
-3. **Click "Scan Page Styles"** button in the popup
-4. Wait a moment while the extension analyzes the page
-5. **Review the extracted design system** in the popup
-6. Choose to either:
-   - **Copy to Clipboard**: Click the "📋 Copy" button
-   - **Download .md File**: Click the "💾 Download" button
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
 
-## Project Structure
+3. **Build the extension**:
+   ```bash
+   npm run build
+   ```
+
+4. **Load in Chrome**:
+   - Open Chrome and navigate to `chrome://extensions/`
+   - Enable "Developer mode" (toggle in top-right)
+   - Click "Load unpacked"
+   - Select the `dist/` folder
+
+## 📖 Usage
+
+1. Navigate to any website (e.g., https://ui.shadcn.com)
+2. Click the Yoink extension icon in your toolbar
+3. Click "Scan Page Styles"
+4. Review the extracted design tokens
+5. Copy or download the Markdown output
+
+## 🏗️ Project Structure
 
 ```
 yoink/
-├── manifest.json          # Extension configuration (Chrome MV3)
-├── popup.html             # Extension popup UI
-├── popup.css              # Popup styling
-├── popup.js               # Popup logic (triggers scan, handles copy/download)
-├── contentScript.js       # Injected script that extracts page styles
-├── background.js          # Service worker for message passing
-├── icons/                 # Extension icons
-│   ├── icon16.png
-│   ├── icon48.png
-│   └── icon128.png
-└── README.md              # This file
+├── src/
+│   ├── scripts/
+│   │   ├── background.ts      # Service worker
+│   │   ├── contentScript.ts   # Page style extraction
+│   │   └── popup.ts           # UI and markdown generation
+│   ├── styles/
+│   │   └── popup.css          # Popup styling
+│   ├── types/
+│   │   └── index.ts           # TypeScript type definitions
+│   └── popup.html             # Popup UI
+├── dist/                      # Compiled extension (generated)
+├── icons/                     # Extension icons
+├── manifest.json              # Chrome extension manifest
+├── package.json               # Dependencies and scripts
+├── tsconfig.json              # TypeScript configuration
+└── README.md                  # This file
 ```
 
-## How It Works
+## 🛠️ Development
 
-1. **User clicks "Scan Page Styles"** in the popup
-2. **popup.js sends a message** to the content script via Chrome's messaging API
-3. **contentScript.js analyzes the page**:
-   - Extracts colors from computed styles
-   - Identifies font families and sizes
-   - Detects spacing patterns (margins, padding)
-   - Captures border radius values
-   - Identifies box shadows
-4. **Results are sent back** to the popup
-5. **popup.js generates a Markdown document** with organized design tokens
-6. **User can copy or download** the generated Markdown
+### Scripts
 
-## Future Enhancements (Part 2+)
+- `npm run build` - Build the extension (TypeScript → JavaScript + copy assets)
+- `npm run watch` - Watch mode for development
+- `npm run clean` - Clean the dist folder
+- `npm run package` - Create a zip file for distribution
 
-- AI-powered component code generation
-- More sophisticated style extraction algorithms
-- CSS variable detection
-- Component library generation
-- Export to other formats (JSON, CSS, Tailwind config)
+### Development Workflow
 
-## Development
-
-This extension uses vanilla JavaScript, HTML, and CSS with no external dependencies.
-
-To modify the extension:
-1. Make your changes to the source files
-2. Go to `chrome://extensions/`
-3. Click the refresh icon on the Yoink extension card
+1. Make changes to source files in `src/`
+2. Run `npm run build` (or `npm run watch` for auto-rebuild)
+3. Go to `chrome://extensions/` and click refresh on the Yoink extension
 4. Test your changes
 
-## License
+### Tech Stack
+
+- **TypeScript** - Type-safe JavaScript
+- **Chrome Extension Manifest V3** - Latest extension format
+- **Vanilla JS/HTML/CSS** - No framework dependencies
+
+## 📝 What It Extracts
+
+### CSS Variables
+- Brand colors (medical-*, brand-*, company-*)
+- Sidebar colors (sidebar-*)
+- Chart colors (chart-*, graph-*, data-*)
+- Semantic UI colors (background, foreground, primary, etc.)
+- Border radius values
+- Filters out Tailwind utility variables and browser extension variables
+
+### Computed Values
+- Hardcoded colors with usage counts
+- Font families
+- Box shadows
+
+### Features
+- ✅ Light/dark theme detection
+- ✅ Usage statistics ("Used in X elements")
+- ✅ Duplicate color detection
+- ✅ OKLCH/LAB color format support with RGB conversion
+- ✅ Alpha channel handling (#rrggbbaa format)
+
+## 📦 Building for Production
+
+```bash
+npm run package
+```
+
+This creates `yoink-extension.zip` in the root directory, ready for Chrome Web Store submission.
+
+## 🔄 Version History
+
+See [CHANGELOG.md](./CHANGELOG.md) for version history and updates.
+
+## 📄 License
 
 MIT License - Feel free to use and modify as needed!
+
+## 🙏 Contributing
+
+Contributions welcome! Please feel free to submit a Pull Request.
