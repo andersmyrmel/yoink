@@ -685,17 +685,27 @@ function generateTypographyContextSection(typography: any): string {
 
   section += `### Heading Hierarchy\n\n`;
 
+  // Check both semantic headings (h1-h6) and inferred headings
   const headingOrder = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
-  for (const tag of headingOrder) {
+  const inferredOrder = ['h1 (inferred)', 'h2 (inferred)', 'h3 (inferred)', 'h4 (inferred)', 'h5 (inferred)', 'h6 (inferred)'];
+  const allHeadings = [...headingOrder, ...inferredOrder];
+
+  let headingsFound = false;
+  for (const tag of allHeadings) {
     const heading = typography.headings[tag];
     if (heading) {
-      const displayName = tag.toUpperCase();
+      headingsFound = true;
+      const displayName = tag.includes('inferred') ? tag.toUpperCase() : tag.toUpperCase();
       section += `- **${displayName}**: \`${heading.fontSize}\` / \`${heading.fontWeight}\` weight / \`${heading.lineHeight}\` line-height\n`;
-      if (heading.examples.length > 0) {
+      if (heading.examples && heading.examples.length > 0) {
         section += `  - Example: "${heading.examples[0]}"\n`;
       }
       section += `  - Color: \`${heading.color}\`\n`;
     }
+  }
+
+  if (!headingsFound) {
+    section += `_No headings detected on this page._\n`;
   }
 
   if (typography.body && typography.body.length > 0) {
