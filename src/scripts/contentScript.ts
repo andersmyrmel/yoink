@@ -502,6 +502,7 @@ function getButtonTextFontSize(button: HTMLElement): string {
 
       // Return if we found a reasonable font size
       if (fontSize >= 10 && fontSize <= 32) {
+        console.log(`🔍 Button text size: "${text.substring(0, 20)}" = ${fontSize}px`);
         return `${fontSize}px`;
       }
     }
@@ -511,6 +512,7 @@ function getButtonTextFontSize(button: HTMLElement): string {
   const buttonText = button.textContent?.trim() || '';
   if (buttonText.length > 0) {
     const buttonStyles = getComputedStyle(button);
+    console.log(`⚠️ Button fallback: "${buttonText.substring(0, 20)}" = ${buttonStyles.fontSize}`);
     return buttonStyles.fontSize;
   }
 
@@ -787,6 +789,8 @@ function inferVariant(button: HTMLElement): string {
  * Extracts typography context with semantic usage
  */
 function extractTypographyContext(): any {
+  console.log('🚀 Typography extraction started - NEW CODE (v2.1.4 - improved filtering)');
+
   const headings: { [tag: string]: any } = {};
   const bodyMap = new Map<string, any>();
   const inferredHeadingsMap = new Map<string, any>();
@@ -865,6 +869,7 @@ function extractTypographyContext(): any {
 
       if (!inferredHeadingsMap.has(headingKey)) {
         const cleanText = text.replace(/\s+/g, ' ').substring(0, 50);
+        console.log(`📋 Detected heading: ${actualFontSize}px/${weight} "${cleanText}" → ${headingLevel}`);
 
         inferredHeadingsMap.set(headingKey, {
           fontSize: `${actualFontSize}px`,
@@ -891,6 +896,7 @@ function extractTypographyContext(): any {
         else if (element.classList.toString().includes('caption')) usage = 'Caption text';
 
         const cleanText = text.replace(/\s+/g, ' ').substring(0, 60);
+        console.log(`📝 Body text: ${actualFontSize}px/${weight} "${cleanText.substring(0, 20)}" (${usage})`);
 
         bodyMap.set(signature, {
           fontSize: `${actualFontSize}px`,
@@ -906,6 +912,10 @@ function extractTypographyContext(): any {
         // Increment count for existing signature
         const existing = bodyMap.get(signature)!;
         existing.count++;
+        // Only log occasionally to avoid spam
+        if (existing.count === 2 || existing.count === 5 || existing.count === 10) {
+          console.log(`📝 Body text count: ${actualFontSize}px/${weight} now has ${existing.count} instances`);
+        }
       }
     }
   }
