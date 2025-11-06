@@ -831,6 +831,31 @@ function generateColorContextSection(colorContext: any): string {
 function generateLayoutPatternsSection(layout: any): string {
   let section = `## 📏 Layout System\n\n`;
 
+  // Spacing Scale (NEW!)
+  if (layout.spacingScale) {
+    const scale = layout.spacingScale;
+    section += `### 📐 Spacing Scale\n\n`;
+    section += `**Base Unit:** \`${scale.baseUnit}\`\n`;
+    section += `**Pattern:** ${scale.pattern}\n`;
+    section += `**Unique Values Found:** ${scale.totalUniqueValues}\n\n`;
+
+    if (scale.recommendation) {
+      section += `💡 *${scale.recommendation}*\n\n`;
+    }
+
+    section += `**Scale Values:**\n\n`;
+    scale.spacingScale.forEach((spacing: any) => {
+      section += `- **${spacing.value}** (${spacing.count} uses) - ${spacing.usage}\n`;
+
+      // Show contexts if available and not too many
+      if (spacing.contexts && spacing.contexts.length > 0 && spacing.contexts.length <= 3) {
+        const contextStr = spacing.contexts.join(', ');
+        section += `  *Used in: ${contextStr}*\n`;
+      }
+    });
+    section += `\n`;
+  }
+
   // Containers
   if (layout.containers && layout.containers.length > 0) {
     section += `### Containers\n\n`;
