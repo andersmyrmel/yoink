@@ -609,6 +609,202 @@ function generateYAML(styles: any): string {
         yaml += `        font-size: ${tooltip.styles.fontSize}\n`;
       });
     }
+
+    // Badges
+    if (styles.components.badges && styles.components.badges.length > 0) {
+      yaml += `\n  badges:\n`;
+      styles.components.badges.slice(0, 5).forEach((badge: any) => {
+        yaml += `    - variant: ${badge.variant}\n`;
+        yaml += `      count: ${badge.count}\n`;
+        yaml += `      styles:\n`;
+        yaml += `        background: "${badge.styles.background}"\n`;
+        yaml += `        color: "${badge.styles.color}"\n`;
+        yaml += `        padding: ${badge.styles.padding}\n`;
+        yaml += `        border-radius: ${badge.styles.borderRadius}\n`;
+        yaml += `        font-size: ${badge.styles.fontSize}\n`;
+      });
+    }
+
+    // Avatars
+    if (styles.components.avatars && styles.components.avatars.length > 0) {
+      yaml += `\n  avatars:\n`;
+      styles.components.avatars.forEach((avatar: any) => {
+        yaml += `    - variant: ${avatar.variant}\n`;
+        yaml += `      count: ${avatar.count}\n`;
+        yaml += `      styles:\n`;
+        yaml += `        size: ${avatar.styles.width} x ${avatar.styles.height}\n`;
+        yaml += `        border-radius: ${avatar.styles.borderRadius}\n`;
+        if (avatar.styles.border !== 'none') yaml += `        border: "${avatar.styles.border}"\n`;
+      });
+    }
+
+    // Tabs
+    if (styles.components.tabs && styles.components.tabs.length > 0) {
+      yaml += `\n  tabs:\n`;
+      styles.components.tabs.forEach((tab: any) => {
+        yaml += `    - variant: ${tab.variant}\n`;
+        yaml += `      count: ${tab.count}\n`;
+        yaml += `      styles:\n`;
+        yaml += `        color: "${tab.styles.color}"\n`;
+        yaml += `        background: "${tab.styles.background}"\n`;
+        yaml += `        border-bottom: "${tab.styles.borderBottom}"\n`;
+        yaml += `        padding: ${tab.styles.padding}\n`;
+        if (tab.states && tab.states.hover) {
+          yaml += `      states:\n`;
+          yaml += `        hover:\n`;
+          Object.entries(tab.states.hover).forEach(([key, value]) => {
+            yaml += `          ${key}: "${value}"\n`;
+          });
+        }
+      });
+    }
+
+    // Accordions
+    if (styles.components.accordions && styles.components.accordions.length > 0) {
+      yaml += `\n  accordions:\n`;
+      styles.components.accordions.forEach((accordion: any) => {
+        yaml += `    - count: ${accordion.count}\n`;
+        yaml += `      styles:\n`;
+        yaml += `        background: "${accordion.styles.background}"\n`;
+        yaml += `        border: "${accordion.styles.border}"\n`;
+        yaml += `        padding: ${accordion.styles.padding}\n`;
+      });
+    }
+
+    // Progress
+    if (styles.components.progress && styles.components.progress.length > 0) {
+      yaml += `\n  progress:\n`;
+      styles.components.progress.forEach((prog: any) => {
+        yaml += `    - variant: ${prog.variant}\n`;
+        yaml += `      count: ${prog.count}\n`;
+        yaml += `      styles:\n`;
+        yaml += `        height: ${prog.styles.height}\n`;
+        yaml += `        background: "${prog.styles.background}"\n`;
+        yaml += `        border-radius: ${prog.styles.borderRadius}\n`;
+      });
+    }
+
+    // Breadcrumbs
+    if (styles.components.breadcrumbs && styles.components.breadcrumbs.length > 0) {
+      yaml += `\n  breadcrumbs:\n`;
+      styles.components.breadcrumbs.forEach((breadcrumb: any) => {
+        yaml += `    - count: ${breadcrumb.count}\n`;
+        yaml += `      styles:\n`;
+        yaml += `        font-size: ${breadcrumb.styles.fontSize}\n`;
+        yaml += `        color: "${breadcrumb.styles.color}"\n`;
+      });
+    }
+
+    // Pagination
+    if (styles.components.pagination && styles.components.pagination.length > 0) {
+      yaml += `\n  pagination:\n`;
+      styles.components.pagination.forEach((pagination: any) => {
+        yaml += `    - count: ${pagination.count}\n`;
+        if (pagination.styles.item) {
+          yaml += `      item-styles:\n`;
+          yaml += `        padding: ${pagination.styles.item.padding}\n`;
+          yaml += `        background: "${pagination.styles.item.background}"\n`;
+          yaml += `        border: "${pagination.styles.item.border}"\n`;
+          yaml += `        border-radius: ${pagination.styles.item.borderRadius}\n`;
+        }
+      });
+    }
+
+    // Alerts
+    if (styles.components.alerts && styles.components.alerts.length > 0) {
+      yaml += `\n  alerts:\n`;
+      styles.components.alerts.forEach((alert: any) => {
+        yaml += `    - variant: ${alert.variant}\n`;
+        yaml += `      count: ${alert.count}\n`;
+        yaml += `      styles:\n`;
+        yaml += `        background: "${alert.styles.background}"\n`;
+        yaml += `        color: "${alert.styles.color}"\n`;
+        yaml += `        border: "${alert.styles.border}"\n`;
+        yaml += `        padding: ${alert.styles.padding}\n`;
+      });
+    }
+
+    // Search Bars
+    if (styles.components.searchBars && styles.components.searchBars.length > 0) {
+      yaml += `\n  search-bars:\n`;
+      styles.components.searchBars.forEach((search: any) => {
+        yaml += `    - count: ${search.count}\n`;
+        yaml += `      styles:\n`;
+        yaml += `        background: "${search.styles.background}"\n`;
+        yaml += `        border: "${search.styles.border}"\n`;
+        yaml += `        border-radius: ${search.styles.borderRadius}\n`;
+        yaml += `        height: ${search.styles.height}\n`;
+        if (search.states && search.states.focus) {
+          yaml += `      states:\n`;
+          yaml += `        focus:\n`;
+          Object.entries(search.states.focus).forEach(([key, value]) => {
+            yaml += `          ${key}: "${value}"\n`;
+          });
+        }
+      });
+    }
+
+    // Toggles
+    if (styles.components.toggles && styles.components.toggles.length > 0) {
+      yaml += `\n  toggles:\n`;
+      styles.components.toggles.forEach((toggle: any) => {
+        yaml += `    - count: ${toggle.count}\n`;
+        yaml += `      styles:\n`;
+        yaml += `        width: ${toggle.styles.width}\n`;
+        yaml += `        height: ${toggle.styles.height}\n`;
+        yaml += `        border-radius: ${toggle.styles.borderRadius}\n`;
+        yaml += `        background: "${toggle.styles.background}"\n`;
+      });
+    }
+
+    // Dividers
+    if (styles.components.dividers && styles.components.dividers.length > 0) {
+      yaml += `\n  dividers:\n`;
+      styles.components.dividers.forEach((divider: any) => {
+        yaml += `    - count: ${divider.count}\n`;
+        yaml += `      styles:\n`;
+        yaml += `        border-top: "${divider.styles.borderTop}"\n`;
+        yaml += `        height: ${divider.styles.height}\n`;
+        yaml += `        margin: ${divider.styles.margin}\n`;
+      });
+    }
+  }
+
+  // Gradients
+  if (styles.gradients && styles.gradients.length > 0) {
+    yaml += `\ngradients:\n`;
+    styles.gradients.slice(0, 5).forEach((gradient: any) => {
+      yaml += `  - type: ${gradient.type}\n`;
+      yaml += `    count: ${gradient.count}\n`;
+      yaml += `    value: "${gradient.value.substring(0, 100)}${gradient.value.length > 100 ? '...' : ''}"\n`;
+    });
+    yaml += `\n`;
+  }
+
+  // Flexbox Patterns
+  if (styles.flexboxPatterns && styles.flexboxPatterns.length > 0) {
+    yaml += `flexbox-patterns:\n`;
+    styles.flexboxPatterns.slice(0, 10).forEach((pattern: any) => {
+      yaml += `  - flex-direction: ${pattern.flexDirection}\n`;
+      yaml += `    justify-content: ${pattern.justifyContent}\n`;
+      yaml += `    align-items: ${pattern.alignItems}\n`;
+      yaml += `    gap: ${pattern.gap || '0px'}\n`;
+      yaml += `    flex-wrap: ${pattern.flexWrap}\n`;
+      yaml += `    usage-count: ${pattern.count}\n`;
+    });
+    yaml += `\n`;
+  }
+
+  // Component Composition
+  if (styles.componentComposition && styles.componentComposition.length > 0) {
+    yaml += `component-composition:\n`;
+    yaml += `  # Common nesting patterns found in the UI\n`;
+    styles.componentComposition.forEach((comp: any) => {
+      yaml += `  - pattern: ${comp.pattern}\n`;
+      yaml += `    count: ${comp.count}\n`;
+      yaml += `    description: "${comp.description}"\n`;
+    });
+    yaml += `\n`;
   }
 
   return yaml;

@@ -51,7 +51,8 @@ function extractStyles(includeComponents: boolean = true): any {
     borderRadius: extractBorderRadius(),
     shadows: extractShadows(),
     layout: extractLayoutStructure(),
-    icons: extractIcons()
+    icons: extractIcons(),
+    gradients: extractGradients()
   };
 
   // Add component patterns and context if requested
@@ -60,6 +61,8 @@ function extractStyles(includeComponents: boolean = true): any {
     styleData.typographyContext = extractTypographyContext();
     styleData.colorContext = extractColorContext();
     styleData.layoutPatterns = extractLayoutPatterns();
+    styleData.flexboxPatterns = extractFlexboxPatterns();
+    styleData.componentComposition = extractComponentComposition();
     styleData.zIndex = extractZIndexHierarchy();
     styleData.animations = extractAnimations();
   }
@@ -755,6 +758,167 @@ function extractLayoutStructure(): any {
 }
 
 /**
+ * Extracts flexbox patterns
+ */
+function extractFlexboxPatterns(): any {
+  const flexPatterns = new Map<string, any>();
+  const allElements = document.querySelectorAll('*');
+  const MAX_ELEMENTS = 1000;
+  const elementsToCheck = Array.from(allElements).slice(0, MAX_ELEMENTS);
+
+  elementsToCheck.forEach(el => {
+    const element = el as HTMLElement;
+    const styles = window.getComputedStyle(element);
+
+    if (styles.display === 'flex' || styles.display === 'inline-flex') {
+      const pattern = {
+        flexDirection: styles.flexDirection,
+        justifyContent: styles.justifyContent,
+        alignItems: styles.alignItems,
+        gap: styles.gap,
+        flexWrap: styles.flexWrap
+      };
+
+      const signature = `${pattern.flexDirection}-${pattern.justifyContent}-${pattern.alignItems}-${pattern.gap}`;
+
+      if (flexPatterns.has(signature)) {
+        const existing = flexPatterns.get(signature)!;
+        existing.count++;
+      } else {
+        flexPatterns.set(signature, { ...pattern, count: 1 });
+      }
+    }
+  });
+
+  return Array.from(flexPatterns.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+}
+
+/**
+ * Extracts gradient patterns from backgrounds
+ */
+function extractGradients(): any[] {
+  const gradients: any[] = [];
+  const seen = new Set<string>();
+
+  const allElements = document.querySelectorAll('*');
+  const MAX_ELEMENTS = 1000;
+  const elementsToCheck = Array.from(allElements).slice(0, MAX_ELEMENTS);
+
+  elementsToCheck.forEach(el => {
+    const element = el as HTMLElement;
+    const styles = window.getComputedStyle(element);
+    const backgroundImage = styles.backgroundImage;
+
+    // Check for gradient
+    if (backgroundImage && (backgroundImage.includes('gradient'))) {
+      // Normalize the gradient string
+      const normalized = backgroundImage.replace(/\s+/g, ' ').trim();
+
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+
+        // Detect gradient type
+        let type = 'linear';
+        if (normalized.includes('radial-gradient')) type = 'radial';
+        if (normalized.includes('conic-gradient')) type = 'conic';
+
+        gradients.push({
+          type,
+          value: normalized,
+          count: 1
+        });
+      } else {
+        // Increment count if we've seen it
+        const existing = gradients.find(g => g.value === normalized);
+        if (existing) existing.count++;
+      }
+    }
+  });
+
+  return gradients.sort((a, b) => b.count - a.count).slice(0, 10);
+}
+
+/**
+ * Extracts component composition and nesting patterns
+ */
+function extractComponentComposition(): any {
+  const compositions: any[] = [];
+
+  // Look for common composition patterns
+  const patterns = [
+    {
+      name: 'card-with-button',
+      selector: '[class*="card"], article',
+      childSelector: 'button, [role="button"]'
+    },
+    {
+      name: 'card-with-image',
+      selector: '[class*="card"], article',
+      childSelector: 'img'
+    },
+    {
+      name: 'modal-with-form',
+      selector: '[role="dialog"], [class*="modal"]',
+      childSelector: 'form, input, textarea'
+    },
+    {
+      name: 'nav-with-dropdown',
+      selector: 'nav, [role="navigation"]',
+      childSelector: '[role="menu"], [class*="dropdown"]'
+    },
+    {
+      name: 'table-with-actions',
+      selector: 'table, [role="table"]',
+      childSelector: 'button, [class*="action"]'
+    },
+    {
+      name: 'form-with-validation',
+      selector: 'form',
+      childSelector: '[class*="error"], [class*="invalid"], [aria-invalid="true"]'
+    },
+    {
+      name: 'button-with-icon',
+      selector: 'button, [role="button"]',
+      childSelector: 'svg, [class*="icon"]'
+    },
+    {
+      name: 'input-with-label',
+      selector: 'input, textarea, select',
+      childSelector: 'label'
+    },
+    {
+      name: 'list-with-avatars',
+      selector: 'ul, ol, [role="list"]',
+      childSelector: '[class*="avatar"], img[class*="profile"]'
+    }
+  ];
+
+  patterns.forEach(pattern => {
+    const containers = document.querySelectorAll(pattern.selector);
+    let count = 0;
+
+    containers.forEach(container => {
+      const children = container.querySelectorAll(pattern.childSelector);
+      if (children.length > 0) {
+        count++;
+      }
+    });
+
+    if (count > 0) {
+      compositions.push({
+        pattern: pattern.name,
+        count,
+        description: `${pattern.selector} containing ${pattern.childSelector}`
+      });
+    }
+  });
+
+  return compositions.sort((a, b) => b.count - a.count);
+}
+
+/**
  * Extracts z-index hierarchy and organizes into layers
  */
 function extractZIndexHierarchy(): any {
@@ -948,7 +1112,18 @@ function extractComponents(): any {
     dropdowns: extractDropdowns(),
     tables: extractTables(),
     modals: extractModals(),
-    tooltips: extractTooltips()
+    tooltips: extractTooltips(),
+    badges: extractBadges(),
+    avatars: extractAvatars(),
+    tabs: extractTabs(),
+    accordions: extractAccordions(),
+    progress: extractProgress(),
+    breadcrumbs: extractBreadcrumbs(),
+    pagination: extractPagination(),
+    alerts: extractAlerts(),
+    searchBars: extractSearchBars(),
+    toggles: extractToggles(),
+    dividers: extractDividers()
   };
 }
 
@@ -1985,6 +2160,574 @@ function extractTooltips(): any[] {
   });
 
   return tooltips.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts badge/tag/chip components
+ */
+function extractBadges(): any[] {
+  const badges: any[] = [];
+  const seen = new Map<string, any>();
+
+  const badgeSelectors = '[class*="badge"], [class*="tag"], [class*="chip"], [class*="pill"], [class*="label"]:not(label)';
+  const elements = document.querySelectorAll(badgeSelectors);
+
+  elements.forEach(badge => {
+    const styles = getComputedStyle(badge);
+    const el = badge as HTMLElement;
+
+    // Filter: must be small and inline-like
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 200 || rect.height > 50) return;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        color: styles.color,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding,
+        fontSize: styles.fontSize,
+        fontWeight: styles.fontWeight,
+        display: styles.display
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: inferBadgeVariant(el),
+        count: 1
+      };
+
+      badges.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return badges.sort((a, b) => b.count - a.count).slice(0, 5);
+}
+
+/**
+ * Infers badge variant from classes or content
+ */
+function inferBadgeVariant(badge: HTMLElement): string {
+  const className = badge.className.toLowerCase();
+
+  if (className.includes('success') || className.includes('green')) return 'success';
+  if (className.includes('error') || className.includes('danger') || className.includes('red')) return 'error';
+  if (className.includes('warning') || className.includes('yellow')) return 'warning';
+  if (className.includes('info') || className.includes('blue')) return 'info';
+  if (className.includes('primary')) return 'primary';
+  if (className.includes('secondary') || className.includes('gray')) return 'secondary';
+
+  return 'default';
+}
+
+/**
+ * Extracts avatar components
+ */
+function extractAvatars(): any[] {
+  const avatars: any[] = [];
+  const seen = new Map<string, any>();
+
+  const avatarSelectors = '[class*="avatar"], img[class*="profile"], img[class*="user"]';
+  const elements = document.querySelectorAll(avatarSelectors);
+
+  elements.forEach(avatar => {
+    const styles = getComputedStyle(avatar);
+    const el = avatar as HTMLElement;
+
+    // Filter: typically small and circular/rounded
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 200 || rect.height > 200) return;
+
+    const signature = `${Math.round(rect.width)}-${styles.borderRadius}`;
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        width: `${Math.round(rect.width)}px`,
+        height: `${Math.round(rect.height)}px`,
+        borderRadius: styles.borderRadius,
+        border: styles.border,
+        objectFit: styles.objectFit
+      };
+
+      const variant: any = {
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: inferAvatarVariant(el, styles),
+        count: 1
+      };
+
+      avatars.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return avatars.sort((a, b) => b.count - a.count).slice(0, 5);
+}
+
+/**
+ * Infers avatar variant from size and shape
+ */
+function inferAvatarVariant(avatar: HTMLElement, styles: CSSStyleDeclaration): string {
+  const borderRadius = styles.borderRadius;
+  const rect = avatar.getBoundingClientRect();
+  const size = Math.round(rect.width);
+
+  // Determine shape
+  const isCircular = borderRadius === '50%' || borderRadius === '9999px';
+  const shape = isCircular ? 'circular' : 'rounded';
+
+  // Determine size category
+  if (size <= 24) return `${shape}-xs`;
+  if (size <= 32) return `${shape}-sm`;
+  if (size <= 48) return `${shape}-md`;
+  if (size <= 64) return `${shape}-lg`;
+  return `${shape}-xl`;
+}
+
+/**
+ * Extracts tab components
+ */
+function extractTabs(): any[] {
+  const tabs: any[] = [];
+  const seen = new Map<string, any>();
+
+  const tabSelectors = '[role="tab"], [class*="tab"]:not([role="tabpanel"])';
+  const elements = document.querySelectorAll(tabSelectors);
+
+  elements.forEach(tab => {
+    const styles = getComputedStyle(tab);
+    const el = tab as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const isActive = el.getAttribute('aria-selected') === 'true' || el.className.includes('active');
+
+      const componentStyles: any = {
+        color: styles.color,
+        background: styles.backgroundColor,
+        borderBottom: styles.borderBottom,
+        padding: styles.padding,
+        fontSize: styles.fontSize,
+        fontWeight: styles.fontWeight
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: isActive ? 'active' : 'inactive',
+        count: 1,
+        states: extractStateStyles(el)
+      };
+
+      tabs.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return tabs.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts accordion/collapsible components
+ */
+function extractAccordions(): any[] {
+  const accordions: any[] = [];
+  const seen = new Map<string, any>();
+
+  const accordionSelectors = '[class*="accordion"], [class*="collapse"], details';
+  const elements = document.querySelectorAll(accordionSelectors);
+
+  elements.forEach(accordion => {
+    const styles = getComputedStyle(accordion);
+    const el = accordion as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'accordion',
+        count: 1
+      };
+
+      accordions.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return accordions.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts progress bar and spinner components
+ */
+function extractProgress(): any[] {
+  const progress: any[] = [];
+  const seen = new Map<string, any>();
+
+  const progressSelectors = '[role="progressbar"], progress, [class*="progress"], [class*="spinner"], [class*="loader"]';
+  const elements = document.querySelectorAll(progressSelectors);
+
+  elements.forEach(prog => {
+    const styles = getComputedStyle(prog);
+    const el = prog as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        color: styles.color,
+        height: styles.height,
+        width: styles.width,
+        borderRadius: styles.borderRadius
+      };
+
+      const isSpinner = el.className.toLowerCase().includes('spinner') ||
+                       el.className.toLowerCase().includes('loader');
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: isSpinner ? 'spinner' : 'progress-bar',
+        count: 1
+      };
+
+      progress.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return progress.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts breadcrumb components
+ */
+function extractBreadcrumbs(): any[] {
+  const breadcrumbs: any[] = [];
+  const seen = new Map<string, any>();
+
+  const breadcrumbSelectors = '[aria-label*="breadcrumb"], [class*="breadcrumb"], nav ol, nav ul';
+  const elements = document.querySelectorAll(breadcrumbSelectors);
+
+  elements.forEach(breadcrumb => {
+    const el = breadcrumb as HTMLElement;
+
+    // Verify it looks like a breadcrumb (has links separated by delimiters)
+    const links = el.querySelectorAll('a, span');
+    if (links.length < 2) return;
+
+    const styles = getComputedStyle(el);
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        fontSize: styles.fontSize,
+        color: styles.color,
+        display: styles.display
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'breadcrumb',
+        count: 1
+      };
+
+      breadcrumbs.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return breadcrumbs.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts pagination components
+ */
+function extractPagination(): any[] {
+  const pagination: any[] = [];
+  const seen = new Map<string, any>();
+
+  const paginationSelectors = '[role="navigation"][aria-label*="pagination"], [class*="pagination"], nav[class*="page"]';
+  const elements = document.querySelectorAll(paginationSelectors);
+
+  elements.forEach(page => {
+    const styles = getComputedStyle(page);
+    const el = page as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        display: styles.display,
+        gap: styles.gap
+      };
+
+      // Extract button/link styles from pagination items
+      const items = el.querySelectorAll('button, a, [class*="page"]');
+      if (items.length > 0) {
+        const itemStyles = getComputedStyle(items[0] as HTMLElement);
+        componentStyles.item = {
+          padding: itemStyles.padding,
+          background: itemStyles.backgroundColor,
+          border: itemStyles.border,
+          borderRadius: itemStyles.borderRadius,
+          fontSize: itemStyles.fontSize
+        };
+      }
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'pagination',
+        count: 1
+      };
+
+      pagination.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return pagination.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts alert/banner components
+ */
+function extractAlerts(): any[] {
+  const alerts: any[] = [];
+  const seen = new Map<string, any>();
+
+  const alertSelectors = '[role="alert"], [class*="alert"], [class*="banner"], [class*="notification"]:not([class*="toast"])';
+  const elements = document.querySelectorAll(alertSelectors);
+
+  elements.forEach(alert => {
+    const styles = getComputedStyle(alert);
+    const el = alert as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        color: styles.color,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding,
+        fontSize: styles.fontSize
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: inferAlertVariant(el),
+        count: 1
+      };
+
+      alerts.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return alerts.sort((a, b) => b.count - a.count).slice(0, 5);
+}
+
+/**
+ * Infers alert variant from classes or aria attributes
+ */
+function inferAlertVariant(alert: HTMLElement): string {
+  const className = alert.className.toLowerCase();
+  const role = alert.getAttribute('role');
+
+  if (className.includes('success')) return 'success';
+  if (className.includes('error') || className.includes('danger')) return 'error';
+  if (className.includes('warning')) return 'warning';
+  if (className.includes('info')) return 'info';
+  if (role === 'alert') return 'alert';
+
+  return 'default';
+}
+
+/**
+ * Extracts search bar components
+ */
+function extractSearchBars(): any[] {
+  const searches: any[] = [];
+  const seen = new Map<string, any>();
+
+  const searchSelectors = 'input[type="search"], [role="search"], [class*="search"] input';
+  const elements = document.querySelectorAll(searchSelectors);
+
+  elements.forEach(search => {
+    const styles = getComputedStyle(search);
+    const el = search as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding,
+        fontSize: styles.fontSize,
+        height: styles.height,
+        width: styles.width
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'search',
+        count: 1,
+        states: extractStateStyles(el)
+      };
+
+      searches.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return searches.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts toggle switch components
+ */
+function extractToggles(): any[] {
+  const toggles: any[] = [];
+  const seen = new Map<string, any>();
+
+  const toggleSelectors = '[role="switch"], input[type="checkbox"][class*="toggle"], input[type="checkbox"][class*="switch"], [class*="toggle"]:not(button)';
+  const elements = document.querySelectorAll(toggleSelectors);
+
+  elements.forEach(toggle => {
+    const styles = getComputedStyle(toggle);
+    const el = toggle as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        width: styles.width,
+        height: styles.height
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'toggle',
+        count: 1,
+        states: extractStateStyles(el)
+      };
+
+      toggles.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return toggles.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts divider/separator components
+ */
+function extractDividers(): any[] {
+  const dividers: any[] = [];
+  const seen = new Map<string, any>();
+
+  const dividerSelectors = 'hr, [class*="divider"], [class*="separator"], [role="separator"]';
+  const elements = document.querySelectorAll(dividerSelectors);
+
+  elements.forEach(divider => {
+    const styles = getComputedStyle(divider);
+    const el = divider as HTMLElement;
+
+    const signature = `${styles.borderTop}-${styles.borderBottom}-${styles.height}-${styles.margin}`;
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        borderTop: styles.borderTop,
+        borderBottom: styles.borderBottom,
+        height: styles.height,
+        margin: styles.margin,
+        background: styles.backgroundColor
+      };
+
+      const variant: any = {
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'divider',
+        count: 1
+      };
+
+      dividers.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return dividers.sort((a, b) => b.count - a.count).slice(0, 3);
 }
 
 /**
