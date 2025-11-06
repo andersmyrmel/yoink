@@ -485,7 +485,8 @@ function extractStateStyles(element: HTMLElement): any {
 }
 
 /**
- * Converts a color string (rgb, rgba, hex) to RGB components
+ * Converts a color string (rgb, rgba, hex, oklch, oklab, hsl, etc.) to RGB components
+ * Uses browser's color computation for formats like oklch/oklab that require complex conversion
  */
 function parseColorToRGB(color: string): { r: number; g: number; b: number } | null {
   // Handle rgb/rgba
@@ -519,6 +520,25 @@ function parseColorToRGB(color: string): { r: number; g: number; b: number } | n
   // Handle transparent
   if (color === 'transparent' || color === 'rgba(0, 0, 0, 0)') {
     return { r: 0, g: 0, b: 0 };
+  }
+
+  // Handle oklch, oklab, hsl, and other CSS color formats
+  // Use browser's color computation
+  if (color.includes('oklch') || color.includes('oklab') || color.includes('hsl') || color.includes('lab')) {
+    try {
+      const tempDiv = document.createElement('div');
+      tempDiv.style.display = 'none';
+      tempDiv.style.color = color;
+      document.body.appendChild(tempDiv);
+
+      const computed = getComputedStyle(tempDiv).color;
+      document.body.removeChild(tempDiv);
+
+      // Recursively parse the computed rgb value
+      return parseColorToRGB(computed);
+    } catch (e) {
+      return null;
+    }
   }
 
   return null;
