@@ -552,37 +552,45 @@ function calculateColorDistance(color1: string, color2: string): number {
 /**
  * Checks if two buttons are visually similar enough to be merged
  * Uses weighted scoring for colors (most important) and structure (less important)
+ * More forgiving tolerances to reduce variant fragmentation
  */
 function areButtonsSimilar(btn1: any, btn2: any): boolean {
   const styles1 = btn1.styles;
   const styles2 = btn2.styles;
 
-  // 1. Compare background colors (most important indicator)
+  // 1. Compare variant type first (must match)
+  if (btn1.variant !== btn2.variant) return false;
+
+  // 2. Compare background colors (most important indicator)
   const bgDistance = calculateColorDistance(styles1.background || 'transparent', styles2.background || 'transparent');
-  if (bgDistance > 0.08) return false; // Colors must be very similar (threshold ~20 RGB units)
+  if (bgDistance > 0.12) return false; // Increased tolerance: ~30 RGB units
 
-  // 2. Compare text colors (also important)
+  // 3. Compare text colors (also important)
   const textDistance = calculateColorDistance(styles1.color || 'rgb(0,0,0)', styles2.color || 'rgb(0,0,0)');
-  if (textDistance > 0.08) return false;
+  if (textDistance > 0.12) return false; // Increased tolerance: ~30 RGB units
 
-  // 3. Compare border-radius (should be similar)
+  // 4. Compare border-radius (can vary for same button type)
   const radius1 = parseFloat(styles1.borderRadius) || 0;
   const radius2 = parseFloat(styles2.borderRadius) || 0;
-  if (Math.abs(radius1 - radius2) > 4) return false; // Allow 4px difference
+  if (Math.abs(radius1 - radius2) > 6) return false; // Increased: Allow 6px difference
 
-  // 4. Compare padding (should be reasonably similar)
+  // 5. Compare padding (size variants often differ here, be forgiving)
   const padding1 = parsePaddingValue(styles1.padding || '0px');
   const padding2 = parsePaddingValue(styles2.padding || '0px');
   const paddingDiff = Math.abs(padding1 - padding2);
-  if (paddingDiff > 8) return false; // Allow 8px difference
+  if (paddingDiff > 12) return false; // Increased: Allow 12px difference for small/medium/large
 
-  // 5. Compare font size (should be similar)
+  // 6. Compare font size (size variants differ here, be very forgiving)
   const fontSize1 = parseFloat(styles1.fontSize) || 14;
   const fontSize2 = parseFloat(styles2.fontSize) || 14;
-  if (Math.abs(fontSize1 - fontSize2) > 2) return false; // Allow 2px difference
+  const fontDiff = Math.abs(fontSize1 - fontSize2);
 
-  // 6. Compare variant type (should match)
-  if (btn1.variant !== btn2.variant) return false;
+  // Allow font size differences for same variant type
+  // Small buttons (10-12px) vs Medium (14-16px) vs Large (18-20px) should merge
+  if (fontDiff > 6) return false; // Increased: Allow 6px difference
+
+  // If fonts are significantly different (>4px), require closer padding match
+  if (fontDiff > 4 && paddingDiff > 6) return false;
 
   // All checks passed - these buttons are similar!
   return true;
@@ -917,12 +925,26 @@ function inferVariant(button: HTMLElement): string {
   // Ghost/outline variants (transparent/minimal background)
   const isTransparent = bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent';
   if (isTransparent) {
+    // Check if has border = outline button
     if (borderWidth > 0 && border !== 'none') {
       return sizeVariant ? `outline-${sizeVariant}` : 'outline';
     }
-    if (textDecoration.includes('underline')) {
-      return 'link';
+
+    // Check text color to differentiate link vs ghost
+    const textColor = styles.color;
+    const textRgb = parseColorToRGB(textColor);
+
+    if (textRgb) {
+      const isBlueText = textRgb.b > 150 && textRgb.b > textRgb.r + 30 && textRgb.b > textRgb.g + 30;
+      const isPrimaryColorText = textRgb.b > textRgb.r + 50 || textRgb.r > 200; // Blue or red links
+
+      // Blue/colored text with transparent bg = link button
+      if (isBlueText || isPrimaryColorText || textDecoration.includes('underline')) {
+        return 'link';
+      }
     }
+
+    // Otherwise it's a ghost button
     return 'ghost';
   }
 
