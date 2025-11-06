@@ -770,12 +770,41 @@ function generateComponentsSection(components: any): string {
 }
 
 /**
- * Generates typography context section
+ * Generates enhanced typography context section
  */
 function generateTypographyContextSection(typography: any): string {
-  let section = `## 📐 Typography Usage\n\n`;
+  let section = `## 📐 Typography System\n\n`;
 
-  section += `### Heading Hierarchy\n\n`;
+  // Type Scale Analysis (NEW!)
+  if (typography.typeScale) {
+    const scale = typography.typeScale;
+    section += `### 📊 Type Scale Analysis\n\n`;
+    section += `**Base Size:** \`${scale.baseSize}px\`\n`;
+    section += `**Scale Ratio:** ${scale.ratioName}\n`;
+    section += `**Confidence:** ${scale.confidence.charAt(0).toUpperCase() + scale.confidence.slice(1)}\n\n`;
+
+    if (scale.scale && scale.scale.length > 0) {
+      section += `**Detected Scale:**\n`;
+      scale.scale.forEach((size: number) => {
+        const multiplier = (size / scale.baseSize).toFixed(2);
+        section += `- ${size}px (${multiplier}x base)\n`;
+      });
+      section += `\n`;
+    }
+  }
+
+  // Line-Height Patterns (NEW!)
+  if (typography.lineHeightPatterns && typography.lineHeightPatterns.length > 0) {
+    section += `### 📏 Line-Height Patterns\n\n`;
+    typography.lineHeightPatterns.forEach((pattern: any) => {
+      section += `- **${pattern.value}** (ratio: ${pattern.ratio}) - ${pattern.usage}\n`;
+      section += `  - Used ${pattern.count} time${pattern.count !== 1 ? 's' : ''}\n`;
+    });
+    section += `\n`;
+  }
+
+  // Heading Hierarchy
+  section += `### 🔠 Heading Hierarchy\n\n`;
 
   // Check both semantic headings (h1-h6) and inferred headings
   const headingOrder = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
@@ -788,35 +817,70 @@ function generateTypographyContextSection(typography: any): string {
     if (heading) {
       headingsFound = true;
       const displayName = tag.includes('inferred') ? tag.toUpperCase() : tag.toUpperCase();
-      section += `- **${displayName}**: \`${heading.fontSize}\` / \`${heading.fontWeight}\` weight / \`${heading.lineHeight}\` line-height\n`;
+      const countText = heading.count ? ` (${heading.count} instance${heading.count !== 1 ? 's' : ''})` : '';
+
+      section += `#### ${displayName}${countText}\n\n`;
+      section += `- **Size:** \`${heading.fontSize}\`\n`;
+      section += `- **Weight:** \`${heading.fontWeight}\`\n`;
+      section += `- **Line Height:** \`${heading.lineHeight}\`\n`;
+      section += `- **Color:** \`${heading.color}\`\n`;
       if (heading.examples && heading.examples.length > 0) {
-        section += `  - Example: "${heading.examples[0]}"\n`;
+        section += `- **Example:** "${heading.examples[0]}"\n`;
       }
-      section += `  - Color: \`${heading.color}\`\n`;
+      section += `\n`;
     }
   }
 
   if (!headingsFound) {
-    section += `_No headings detected on this page._\n`;
+    section += `_No headings detected on this page._\n\n`;
   }
 
+  // Body Text - Organized by Category (IMPROVED!)
   if (typography.body && typography.body.length > 0) {
-    section += `\n### Body Text\n\n`;
-    typography.body.forEach((bodyStyle) => {
-      const label = bodyStyle.usage || 'Body text';
-      const instanceText = bodyStyle.count ? ` (${bodyStyle.count} instance${bodyStyle.count !== 1 ? 's' : ''})` : '';
-      section += `- **${label}**: \`${bodyStyle.fontSize}\` / \`${bodyStyle.fontWeight}\` weight / \`${bodyStyle.lineHeight}\` line-height${instanceText}\n`;
-      section += `  - Color: \`${bodyStyle.color}\`\n`;
-      if (bodyStyle.tag) {
-        section += `  - Element: \`<${bodyStyle.tag}>\`\n`;
-      }
-      if (bodyStyle.examples && bodyStyle.examples.length > 0) {
-        section += `  - Example: "${bodyStyle.examples[0]}"\n`;
-      }
+    section += `### 📝 Body Text Styles\n\n`;
+
+    // Group body text by category
+    const categories = {
+      'UI': [] as any[],
+      'Content': [] as any[],
+      'Caption': [] as any[],
+      'Label': [] as any[],
+      'Other': [] as any[]
+    };
+
+    typography.body.forEach((bodyStyle: any) => {
+      const usage = bodyStyle.usage || 'Body text';
+      if (usage.startsWith('UI:')) categories.UI.push(bodyStyle);
+      else if (usage.startsWith('Content:')) categories.Content.push(bodyStyle);
+      else if (usage.startsWith('Caption:') || usage.includes('Caption/Meta')) categories.Caption.push(bodyStyle);
+      else if (usage.startsWith('Label:')) categories.Label.push(bodyStyle);
+      else categories.Other.push(bodyStyle);
     });
+
+    // Display each category
+    for (const [category, styles] of Object.entries(categories)) {
+      if (styles.length === 0) continue;
+
+      section += `#### ${category} Text\n\n`;
+      styles.forEach((bodyStyle: any) => {
+        const label = bodyStyle.usage || 'Body text';
+        const instanceText = bodyStyle.count ? ` (${bodyStyle.count} instance${bodyStyle.count !== 1 ? 's' : ''})` : '';
+
+        section += `**${label}:**${instanceText}\n`;
+        section += `- Size: \`${bodyStyle.fontSize}\`, Weight: \`${bodyStyle.fontWeight}\`, Line Height: \`${bodyStyle.lineHeight}\`\n`;
+        section += `- Color: \`${bodyStyle.color}\`\n`;
+        if (bodyStyle.tag) {
+          section += `- Element: \`<${bodyStyle.tag}>\`\n`;
+        }
+        if (bodyStyle.examples && bodyStyle.examples.length > 0) {
+          section += `- Example: "${bodyStyle.examples[0]}"\n`;
+        }
+        section += `\n`;
+      });
+    }
   }
 
-  section += `\n---\n\n`;
+  section += `---\n\n`;
   return section;
 }
 

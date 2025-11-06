@@ -1466,12 +1466,45 @@ function inferSizeVariant(_button: HTMLElement, styles: CSSStyleDeclaration): st
 }
 
 /**
- * Extracts typography context with semantic usage
+ * Enhanced typography analysis result
  */
-function extractTypographyContext(): any {
+interface TypographyAnalysis {
+  headings: { [tag: string]: any };
+  body: any[];
+  typeScale: TypeScaleAnalysis;
+  lineHeightPatterns: LineHeightPattern[];
+}
+
+/**
+ * Type scale analysis
+ */
+interface TypeScaleAnalysis {
+  baseSize: number;
+  ratio: number;
+  ratioName: string;
+  scale: number[];
+  confidence: string;
+}
+
+/**
+ * Line height pattern
+ */
+interface LineHeightPattern {
+  value: string;
+  ratio: number;
+  count: number;
+  usage: string;
+}
+
+/**
+ * Extracts comprehensive typography context with semantic usage
+ */
+function extractTypographyContext(): TypographyAnalysis {
   const headings: { [tag: string]: any } = {};
   const bodyMap = new Map<string, any>();
   const inferredHeadingsMap = new Map<string, any>();
+  const allFontSizes: number[] = [];
+  const lineHeightMap = new Map<string, { count: number; fontSize: number[] }>();
 
   // Extract semantic heading styles (h1-h6 tags)
   ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].forEach(tag => {
@@ -1482,6 +1515,9 @@ function extractTypographyContext(): any {
     const styles = getComputedStyle(firstElement);
     const actualFontSize = parseFloat(styles.fontSize);
 
+    allFontSizes.push(actualFontSize);
+    trackLineHeight(styles.lineHeight, actualFontSize, lineHeightMap);
+
     headings[tag] = {
       fontSize: `${actualFontSize}px`,
       fontWeight: styles.fontWeight,
@@ -1491,24 +1527,25 @@ function extractTypographyContext(): any {
       examples: Array.from(elements).slice(0, 2).map(el =>
         el.textContent?.substring(0, 50) || ''
       ),
-      tag
+      tag,
+      count: elements.length
     };
   });
 
   // Extract text styles from actual content-bearing elements
-  // Use more specific selectors and filter out containers
-  const bodySelectors = 'p, span:not([class*="icon"]), div, a, button, label, li';
+  // Scan more elements for comprehensive analysis
+  const bodySelectors = 'p, span:not([class*="icon"]), div, a, button, label, li, td, th, figcaption, small, strong, em';
   const bodyElements = document.querySelectorAll(bodySelectors);
-  const maxBodyElements = Math.min(bodyElements.length, 200); // Increased to get better coverage
+  const maxBodyElements = Math.min(bodyElements.length, 500); // Increased for better coverage
 
   for (let i = 0; i < maxBodyElements; i++) {
     const element = bodyElements[i] as HTMLElement;
     const text = element.textContent?.trim() || '';
 
     // Skip if no meaningful text
-    if (text.length < 3 || text.length > 200) continue;
+    if (text.length < 2 || text.length > 300) continue;
 
-    // Filter out container elements more aggressively
+    // Filter out container elements
     const directText = Array.from(element.childNodes)
       .filter(node => node.nodeType === Node.TEXT_NODE)
       .map(node => node.textContent?.trim() || '')
@@ -1516,29 +1553,25 @@ function extractTypographyContext(): any {
       .trim();
 
     // Skip if it's mainly a container
-    if (element.children.length > 1 && directText.length < 15) continue;
+    if (element.children.length > 2 && directText.length < 10) continue;
 
-    // Skip if it contains structural elements (containers with nested divs/sections)
-    const hasStructuralChildren = element.querySelector('div, section, article') !== null;
+    // Skip if it contains structural elements
+    const hasStructuralChildren = element.querySelector('div, section, article, aside, main') !== null;
     if (hasStructuralChildren && element.children.length > 0) continue;
-
-    // Skip button and link elements - they're extracted separately in component patterns
-    const tagName = element.tagName.toLowerCase();
-    if (tagName === 'button' || (tagName === 'a' && element.getAttribute('role') === 'button')) continue;
 
     const styles = getComputedStyle(element);
     const actualFontSize = parseFloat(styles.fontSize);
     const weight = parseInt(styles.fontWeight);
 
+    // Track all font sizes for scale detection
+    allFontSizes.push(actualFontSize);
+    trackLineHeight(styles.lineHeight, actualFontSize, lineHeightMap);
+
     // Use actual font size in signature
     const signature = `${actualFontSize}px-${weight}-${styles.lineHeight}`;
 
-    // Detect if this should be a heading based on size and weight
-    // Be conservative: only large + bold text, or very large text
-    // Don't classify navigation text as headings - it's body text
-    const isLargeAndBold = actualFontSize >= 16 && weight >= 600;
-    const isVeryLarge = actualFontSize >= 20;
-    const isHeading = isLargeAndBold || isVeryLarge || (actualFontSize >= 18 && weight >= 700);
+    // Enhanced heading detection with better heuristics
+    const isHeading = detectIfHeading(element, actualFontSize, weight, text);
 
     if (isHeading) {
       // This looks like a heading - add to inferred headings
@@ -1555,23 +1588,16 @@ function extractTypographyContext(): any {
           color: styles.color,
           usage: `${headingLevel} headings (inferred from ${actualFontSize}px text)`,
           examples: [cleanText + (text.length > 50 ? '...' : '')],
-          tag: headingLevel
+          tag: headingLevel,
+          count: 1
         });
+      } else {
+        inferredHeadingsMap.get(headingKey)!.count++;
       }
     } else {
-      // This is body text
+      // This is body text - classify with enhanced categories
       if (!bodyMap.has(signature)) {
-        // Infer semantic usage from tag and context
-        let usage = 'Body text';
-        const tagName = element.tagName.toLowerCase();
-
-        if (tagName === 'p') usage = 'Paragraph text';
-        else if (tagName === 'a' && element.closest('nav')) usage = 'Navigation links';
-        else if (tagName === 'a') usage = 'Link text';
-        else if (tagName === 'button') usage = 'Button text';
-        else if (tagName === 'label') usage = 'Label text';
-        else if (element.classList.toString().includes('caption')) usage = 'Caption text';
-
+        const usage = classifyBodyText(element, actualFontSize, weight);
         const cleanText = text.replace(/\s+/g, ' ').substring(0, 60);
 
         bodyMap.set(signature, {
@@ -1581,7 +1607,7 @@ function extractTypographyContext(): any {
           color: styles.color,
           usage,
           examples: [cleanText + (text.length > 60 ? '...' : '')],
-          tag: tagName,
+          tag: element.tagName.toLowerCase(),
           count: 1
         });
       } else {
@@ -1600,12 +1626,235 @@ function extractTypographyContext(): any {
   // Sort body text by count (most common first)
   const sortedBody = Array.from(bodyMap.values())
     .sort((a, b) => b.count - a.count)
-    .slice(0, 5); // Show top 5 instead of 3
+    .slice(0, 8); // Show top 8 for better coverage
+
+  // Analyze type scale
+  const typeScale = analyzeTypeScale(allFontSizes);
+
+  // Analyze line-height patterns
+  const lineHeightPatterns = analyzeLineHeightPatterns(lineHeightMap);
 
   return {
     headings,
-    body: sortedBody
+    body: sortedBody,
+    typeScale,
+    lineHeightPatterns
   };
+}
+
+/**
+ * Enhanced heading detection with multiple heuristics
+ */
+function detectIfHeading(element: HTMLElement, fontSize: number, weight: number, text: string): boolean {
+  const tagName = element.tagName.toLowerCase();
+
+  // Don't classify buttons, links in nav, or form elements as headings
+  if (tagName === 'button') return false;
+  if (tagName === 'a' && element.closest('nav, header')) return false;
+  if (tagName === 'label') return false;
+
+  // Check visual hierarchy
+  const isLargeAndBold = fontSize >= 18 && weight >= 600;
+  const isVeryLarge = fontSize >= 24;
+  const isExtraLarge = fontSize >= 32;
+
+  // Check text characteristics
+  const isShortText = text.length < 80; // Headings are typically short
+  const isCapitalized = text.length > 0 && text[0] === text[0].toUpperCase();
+
+  // Check semantic markers
+  const hasHeadingClass = element.className.toLowerCase().match(/title|heading|headline|display/);
+
+  // Combine heuristics
+  if (isExtraLarge) return true; // Very large text is almost always a heading
+  if (isVeryLarge && isShortText) return true;
+  if (isLargeAndBold && isShortText && isCapitalized) return true;
+  if (hasHeadingClass && fontSize >= 16) return true;
+
+  return false;
+}
+
+/**
+ * Enhanced body text classification
+ */
+function classifyBodyText(element: HTMLElement, fontSize: number, weight: number): string {
+  const tagName = element.tagName.toLowerCase();
+  const className = element.className.toLowerCase();
+
+  // UI Text (buttons, menus, nav)
+  if (tagName === 'button' || element.getAttribute('role') === 'button') {
+    return 'UI: Button text';
+  }
+  if (tagName === 'a' && element.closest('nav, header')) {
+    return 'UI: Navigation';
+  }
+  if (className.includes('menu') || className.includes('dropdown')) {
+    return 'UI: Menu items';
+  }
+
+  // Caption/Meta text (small text, usually under 13px)
+  if (fontSize < 13 || tagName === 'small' || className.includes('caption')) {
+    return 'Caption/Meta text';
+  }
+  if (tagName === 'figcaption') {
+    return 'Caption: Figure caption';
+  }
+  if (className.includes('meta') || className.includes('timestamp')) {
+    return 'Caption: Metadata';
+  }
+
+  // Label text
+  if (tagName === 'label' || className.includes('label')) {
+    return 'Label: Form label';
+  }
+  if (tagName === 'th') {
+    return 'Label: Table header';
+  }
+
+  // Content text (paragraphs, articles)
+  if (tagName === 'p') {
+    return 'Content: Paragraph';
+  }
+  if (tagName === 'td' || tagName === 'li') {
+    return 'Content: Body text';
+  }
+  if (element.closest('article, main, section')) {
+    return 'Content: Article text';
+  }
+
+  // Link text
+  if (tagName === 'a') {
+    return 'Link text';
+  }
+
+  // Emphasis
+  if (tagName === 'strong' || weight >= 600) {
+    return 'Content: Emphasized text';
+  }
+
+  return 'Body text';
+}
+
+/**
+ * Tracks line-height values for pattern analysis
+ */
+function trackLineHeight(lineHeight: string, fontSize: number, lineHeightMap: Map<string, { count: number; fontSize: number[] }>): void {
+  if (!lineHeight || lineHeight === 'normal') return;
+
+  if (!lineHeightMap.has(lineHeight)) {
+    lineHeightMap.set(lineHeight, { count: 0, fontSize: [] });
+  }
+
+  const entry = lineHeightMap.get(lineHeight)!;
+  entry.count++;
+  entry.fontSize.push(fontSize);
+}
+
+/**
+ * Analyzes font sizes to detect type scale ratio
+ */
+function analyzeTypeScale(fontSizes: number[]): TypeScaleAnalysis {
+  if (fontSizes.length < 3) {
+    return {
+      baseSize: 16,
+      ratio: 1,
+      ratioName: 'Insufficient data',
+      scale: [],
+      confidence: 'low'
+    };
+  }
+
+  // Get unique font sizes, sorted
+  const uniqueSizes = Array.from(new Set(fontSizes)).sort((a, b) => a - b);
+
+  // Detect base size (most common small-to-medium size)
+  const baseCandidates = fontSizes.filter(s => s >= 12 && s <= 18);
+  const baseSize = baseCandidates.length > 0
+    ? Math.round(baseCandidates.reduce((a, b) => a + b) / baseCandidates.length)
+    : 16;
+
+  // Calculate ratios between consecutive sizes
+  const ratios: number[] = [];
+  for (let i = 1; i < uniqueSizes.length && i < 6; i++) {
+    const ratio = uniqueSizes[i] / uniqueSizes[i - 1];
+    if (ratio >= 1.1 && ratio <= 2.0) {
+      ratios.push(ratio);
+    }
+  }
+
+  // If we have ratios, calculate average
+  const avgRatio = ratios.length > 0
+    ? ratios.reduce((a, b) => a + b) / ratios.length
+    : 1;
+
+  // Identify common type scale ratios
+  const commonRatios = [
+    { value: 1.125, name: 'Major Second (1.125)' },
+    { value: 1.2, name: 'Minor Third (1.2)' },
+    { value: 1.25, name: 'Major Third (1.25)' },
+    { value: 1.333, name: 'Perfect Fourth (1.333)' },
+    { value: 1.414, name: 'Augmented Fourth (1.414)' },
+    { value: 1.5, name: 'Perfect Fifth (1.5)' },
+    { value: 1.618, name: 'Golden Ratio (1.618)' },
+    { value: 2, name: 'Octave (2.0)' }
+  ];
+
+  // Find closest match
+  let closestRatio = commonRatios[0];
+  let minDiff = Math.abs(avgRatio - closestRatio.value);
+
+  for (const ratio of commonRatios) {
+    const diff = Math.abs(avgRatio - ratio.value);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestRatio = ratio;
+    }
+  }
+
+  // Determine confidence
+  let confidence = 'low';
+  if (minDiff < 0.05 && ratios.length >= 3) confidence = 'high';
+  else if (minDiff < 0.1 && ratios.length >= 2) confidence = 'medium';
+
+  return {
+    baseSize,
+    ratio: closestRatio.value,
+    ratioName: closestRatio.name,
+    scale: uniqueSizes.slice(0, 8),
+    confidence
+  };
+}
+
+/**
+ * Analyzes line-height patterns
+ */
+function analyzeLineHeightPatterns(lineHeightMap: Map<string, { count: number; fontSize: number[] }>): LineHeightPattern[] {
+  const patterns: LineHeightPattern[] = [];
+
+  for (const [value, data] of lineHeightMap.entries()) {
+    // Calculate average ratio (line-height / font-size)
+    const avgFontSize = data.fontSize.reduce((a, b) => a + b, 0) / data.fontSize.length;
+    const lineHeightPx = parseFloat(value);
+    const ratio = lineHeightPx / avgFontSize;
+
+    // Determine usage category
+    let usage = 'Body text';
+    if (ratio <= 1.2) usage = 'Tight (headings)';
+    else if (ratio >= 1.6) usage = 'Loose (content)';
+    else if (ratio >= 1.4 && ratio < 1.6) usage = 'Normal (body)';
+
+    patterns.push({
+      value,
+      ratio: Math.round(ratio * 100) / 100,
+      count: data.count,
+      usage
+    });
+  }
+
+  // Sort by count (most common first)
+  patterns.sort((a, b) => b.count - a.count);
+
+  return patterns.slice(0, 5);
 }
 
 /**
