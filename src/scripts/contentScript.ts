@@ -590,9 +590,15 @@ function areButtonsSimilar(btn1: any, btn2: any): boolean {
     if (bgDistance > 0.12) return false;
   }
 
-  // 3. Compare text colors
+  // 3. Compare text colors (more forgiving for ghost/outline variants)
   const textDistance = calculateColorDistance(styles1.color || 'rgb(0,0,0)', styles2.color || 'rgb(0,0,0)');
-  if (textDistance > 0.12) return false;
+
+  if (isGhostOrOutline) {
+    // Ghost/outline buttons often have varying text shades (dark, medium, light gray)
+    if (textDistance > 0.20) return false; // Very forgiving: ~50 RGB units
+  } else {
+    if (textDistance > 0.12) return false; // Standard tolerance for filled buttons
+  }
 
   // 4. Compare border-radius (very forgiving for same variant type)
   const radius1 = parseFloat(styles1.borderRadius) || 0;
