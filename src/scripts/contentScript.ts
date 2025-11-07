@@ -4448,8 +4448,8 @@ function extractBreakpoints(): number[] {
  * Returns hierarchical component structure with semantic info
  */
 function extractDOMTree(): any {
-  const maxDepth = 8; // Limit depth to avoid huge trees
-  const maxChildren = 10; // Limit children per node
+  const maxDepth = 12; // Increased depth for better content coverage
+  const maxChildren = 15; // Increased children limit per node
 
   function isVisible(el: Element): boolean {
     const style = window.getComputedStyle(el);
@@ -4550,18 +4550,29 @@ function extractDOMTree(): any {
       node.styles = styles;
     }
 
-    // Extract text content for text nodes (limit length)
-    const textContent = el.textContent?.trim();
-    if (textContent && textContent.length > 0 && textContent.length < 100) {
-      // Only include direct text, not from children
-      let directText = '';
-      for (const child of Array.from(el.childNodes)) {
-        if (child.nodeType === Node.TEXT_NODE) {
-          directText += child.textContent?.trim() || '';
-        }
+    // Extract text content - prioritize interactive elements
+    const interactiveElements = ['button', 'a', 'label', 'input', 'textarea', 'select'];
+    const isInteractive = interactiveElements.includes(tagName);
+
+    if (isInteractive) {
+      // For interactive elements, capture full text content (including from children)
+      const fullText = el.textContent?.trim();
+      if (fullText && fullText.length > 0 && fullText.length < 100) {
+        node.text = fullText.substring(0, 80);
       }
-      if (directText.length > 0 && directText.length < 50) {
-        node.text = directText.substring(0, 50);
+    } else {
+      // For other elements, only include direct text (not from children)
+      const textContent = el.textContent?.trim();
+      if (textContent && textContent.length > 0 && textContent.length < 100) {
+        let directText = '';
+        for (const child of Array.from(el.childNodes)) {
+          if (child.nodeType === Node.TEXT_NODE) {
+            directText += child.textContent?.trim() || '';
+          }
+        }
+        if (directText.length > 0 && directText.length < 50) {
+          node.text = directText.substring(0, 50);
+        }
       }
     }
 
