@@ -4496,6 +4496,60 @@ function extractDOMTree(): any {
       node.layout = 'grid';
     }
 
+    // Extract key computed styles to decode obfuscated class names
+    const styles: any = {};
+
+    // Display (always include)
+    styles.display = computed.display;
+
+    // Flexbox properties
+    if (computed.display.includes('flex')) {
+      if (computed.flexDirection !== 'row') styles.flexDirection = computed.flexDirection;
+      if (computed.justifyContent !== 'normal' && computed.justifyContent !== 'flex-start') {
+        styles.justifyContent = computed.justifyContent;
+      }
+      if (computed.alignItems !== 'normal' && computed.alignItems !== 'stretch') {
+        styles.alignItems = computed.alignItems;
+      }
+      if (computed.gap !== '0px' && computed.gap !== 'normal') styles.gap = computed.gap;
+    }
+
+    // Grid properties
+    if (computed.display.includes('grid')) {
+      if (computed.gridTemplateColumns !== 'none') styles.gridTemplateColumns = computed.gridTemplateColumns;
+      if (computed.gap !== '0px' && computed.gap !== 'normal') styles.gap = computed.gap;
+    }
+
+    // Spacing
+    if (computed.padding !== '0px') styles.padding = computed.padding;
+    if (computed.margin !== '0px') styles.margin = computed.margin;
+
+    // Visual styles
+    const bgColor = computed.backgroundColor;
+    if (bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+      styles.background = bgColor;
+    }
+
+    if (computed.borderRadius !== '0px') styles.borderRadius = computed.borderRadius;
+
+    const boxShadow = computed.boxShadow;
+    if (boxShadow !== 'none') {
+      // Truncate long box-shadow values
+      styles.boxShadow = boxShadow.length > 80 ? boxShadow.substring(0, 80) + '...' : boxShadow;
+    }
+
+    // Typography (for text-heavy elements)
+    if (['button', 'a', 'span', 'p', 'label', 'input', 'textarea'].includes(tagName)) {
+      if (computed.color !== 'rgb(0, 0, 0)') styles.color = computed.color;
+      if (computed.fontSize !== '16px') styles.fontSize = computed.fontSize;
+      if (computed.fontWeight !== '400') styles.fontWeight = computed.fontWeight;
+    }
+
+    // Only add styles object if we have meaningful styles
+    if (Object.keys(styles).length > 1) { // More than just 'display'
+      node.styles = styles;
+    }
+
     // Extract text content for text nodes (limit length)
     const textContent = el.textContent?.trim();
     if (textContent && textContent.length > 0 && textContent.length < 100) {

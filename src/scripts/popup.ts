@@ -154,6 +154,13 @@ function generateDOMYAML(node: any, indentLevel: number): string {
     yaml += `${indent}text: "${node.text}"\n`;
   }
 
+  if (node.styles) {
+    yaml += `${indent}styles:\n`;
+    for (const [key, value] of Object.entries(node.styles)) {
+      yaml += `${indent}  ${key}: ${value}\n`;
+    }
+  }
+
   if (node.children && node.children.length > 0) {
     yaml += `${indent}children:\n`;
     node.children.forEach((child: any) => {
