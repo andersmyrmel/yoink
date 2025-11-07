@@ -126,6 +126,86 @@ function showSuccess(message: string): void {
 }
 
 /**
+ * Recursively generates YAML for DOM tree structure
+ */
+function generateDOMYAML(node: any, indentLevel: number): string {
+  const indent = '  '.repeat(indentLevel);
+  let yaml = '';
+
+  yaml += `${indent}tag: ${node.tag}\n`;
+
+  if (node.classes && node.classes.length > 0) {
+    yaml += `${indent}classes: [${node.classes.join(', ')}]\n`;
+  }
+
+  if (node.role) {
+    yaml += `${indent}role: ${node.role}\n`;
+  }
+
+  if (node.layout) {
+    yaml += `${indent}layout: ${node.layout}\n`;
+  }
+
+  if (node.dimensions) {
+    yaml += `${indent}dimensions: { width: ${node.dimensions.width}px, height: ${node.dimensions.height}px }\n`;
+  }
+
+  // Semantic attributes
+  if (node.href) {
+    yaml += `${indent}href: "${node.href}"\n`;
+  }
+
+  if (node.src) {
+    yaml += `${indent}src: "${node.src}"\n`;
+  }
+
+  if (node.alt) {
+    yaml += `${indent}alt: "${node.alt}"\n`;
+  }
+
+  if (node.inputType) {
+    yaml += `${indent}inputType: ${node.inputType}\n`;
+  }
+
+  if (node.placeholder) {
+    yaml += `${indent}placeholder: "${node.placeholder}"\n`;
+  }
+
+  if (node.buttonType) {
+    yaml += `${indent}buttonType: ${node.buttonType}\n`;
+  }
+
+  if (node.tableHeaders) {
+    yaml += `${indent}tableHeaders: [${node.tableHeaders.join(', ')}]\n`;
+  }
+
+  if (node.tableRows) {
+    yaml += `${indent}tableRows: ${node.tableRows}\n`;
+  }
+
+  if (node.text) {
+    yaml += `${indent}text: "${node.text}"\n`;
+  }
+
+  if (node.styles) {
+    yaml += `${indent}styles:\n`;
+    for (const [key, value] of Object.entries(node.styles)) {
+      yaml += `${indent}  ${key}: ${value}\n`;
+    }
+  }
+
+  if (node.children && node.children.length > 0) {
+    yaml += `${indent}children:\n`;
+    node.children.forEach((child: any) => {
+      yaml += `${indent}  -\n`;
+      yaml += generateDOMYAML(child, indentLevel + 2);
+    });
+  }
+
+  return yaml;
+}
+
+/**
  * Generates YAML format optimized for AI processing
  * Raw extraction data with usage statistics for AI enhancement
  */
@@ -138,11 +218,22 @@ function generateYAML(styles: any): string {
 
   yaml += `metadata:\n`;
   yaml += `  extraction-date: ${now}\n`;
+  if (styles.domStructure) {
+    yaml += `  url: "${styles.domStructure.url}"\n`;
+    yaml += `  viewport: "${styles.domStructure.viewport.width}x${styles.domStructure.viewport.height}"\n`;
+  }
   if (styles.typographyContext?.typeScale) {
     yaml += `  detected-pattern: "${styles.typographyContext.typeScale.ratioName}"\n`;
     yaml += `  confidence: ${styles.typographyContext.typeScale.confidence}\n`;
   }
   yaml += `\n`;
+
+  // DOM Structure - hierarchical component tree
+  if (styles.domStructure?.tree) {
+    yaml += `dom-structure:\n`;
+    yaml += generateDOMYAML(styles.domStructure.tree, 1);
+    yaml += `\n`;
+  }
 
   // Colors - with usage data
   yaml += `colors:\n`;
