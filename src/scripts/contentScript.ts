@@ -1770,7 +1770,7 @@ function extractCards(): any[] {
     }
   });
 
-  return cards.sort((a, b) => b.count - a.count).slice(0, 5);
+  return cards.sort((a, b) => b.count - a.count).slice(0, 10); // Increased to capture more card variants
 }
 
 /**
@@ -1794,7 +1794,8 @@ function extractInputs(): any[] {
   const inputs: any[] = [];
   const seen = new Map<string, any>();
 
-  const inputSelectors = 'input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, select';
+  // Expanded to catch custom input implementations (contenteditable, role="textbox", etc.)
+  const inputSelectors = 'input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, select, [role="textbox"], [role="searchbox"], [role="combobox"], [contenteditable="true"], [class*="input"]:not(input)';
   const elements = document.querySelectorAll(inputSelectors);
 
   elements.forEach(input => {
@@ -1965,15 +1966,13 @@ function extractDropdowns(): any[] {
   const dropdowns: any[] = [];
   const seen = new Map<string, any>();
 
-  const dropdownSelectors = '[role="menu"], [role="listbox"], [class*="dropdown"], [class*="menu"][class*="list"], select, [class*="popover"]';
+  // Expanded to catch more dropdown patterns and custom implementations
+  const dropdownSelectors = '[role="menu"], [role="listbox"], [role="select"], [class*="dropdown"], [class*="menu"][class*="list"], [class*="popover"], [class*="select"]:not(select), [data-dropdown], [data-menu]';
   const elements = document.querySelectorAll(dropdownSelectors);
 
   elements.forEach(dropdown => {
     const styles = getComputedStyle(dropdown);
     const el = dropdown as HTMLElement;
-
-    // Skip if it's a select element already captured
-    if (el.tagName.toLowerCase() === 'select') return;
 
     const signature = createStyleSignature(el);
 
@@ -2004,7 +2003,7 @@ function extractDropdowns(): any[] {
     }
   });
 
-  return dropdowns.sort((a, b) => b.count - a.count).slice(0, 3);
+  return dropdowns.sort((a, b) => b.count - a.count).slice(0, 10); // Increased to capture more dropdown variants
 }
 
 /**
@@ -2014,15 +2013,25 @@ function extractTables(): any[] {
   const tables: any[] = [];
   const seen = new Map<string, any>();
 
-  const tableElements = document.querySelectorAll('table, [role="table"], [class*="table"]:not(table)');
+  // Expanded selectors to catch virtualized tables, grids, and data lists
+  const tableElements = document.querySelectorAll('table, [role="table"], [role="grid"], [role="treegrid"], [class*="table"]:not(table), [class*="data-grid"], [class*="datagrid"], [data-table], [data-grid]');
 
   tableElements.forEach(table => {
     const el = table as HTMLElement;
 
     // For non-table elements, verify they have table-like structure
     if (el.tagName.toLowerCase() !== 'table') {
-      const hasRows = el.querySelectorAll('[role="row"], [class*="row"]').length > 2;
-      if (!hasRows) return;
+      // Check for rows using multiple patterns (lowered threshold to 1)
+      const rowSelectors = '[role="row"], [class*="row"], [data-row], [class*="grid-row"], [class*="table-row"]';
+      const rows = el.querySelectorAll(rowSelectors);
+
+      // Also check if it's a grid layout with repeated children (virtualized table pattern)
+      const styles = getComputedStyle(el);
+      const isGridLayout = styles.display === 'grid' || styles.display === 'inline-grid';
+      const hasMultipleChildren = el.children.length > 3;
+
+      if (rows.length === 0 && !isGridLayout) return;
+      if (rows.length === 0 && isGridLayout && !hasMultipleChildren) return;
     }
 
     const styles = getComputedStyle(el);
@@ -2039,8 +2048,8 @@ function extractTables(): any[] {
         width: styles.width
       };
 
-      // Extract header styles if present
-      const header = el.querySelector('thead, [role="rowheader"], th');
+      // Extract header styles if present (expanded selectors)
+      const header = el.querySelector('thead, [role="rowheader"], [role="columnheader"], th, [class*="header"][class*="cell"], [class*="head"]');
       if (header) {
         const headerStyles = getComputedStyle(header as HTMLElement);
         componentStyles.header = {
@@ -2051,8 +2060,8 @@ function extractTables(): any[] {
         };
       }
 
-      // Extract cell styles
-      const cell = el.querySelector('td, [role="cell"]');
+      // Extract cell styles (expanded selectors for grid-based tables)
+      const cell = el.querySelector('td, [role="cell"], [role="gridcell"], [class*="cell"]:not([class*="header"])');
       if (cell) {
         const cellStyles = getComputedStyle(cell as HTMLElement);
         componentStyles.cell = {
@@ -2074,7 +2083,7 @@ function extractTables(): any[] {
     }
   });
 
-  return tables.sort((a, b) => b.count - a.count).slice(0, 3);
+  return tables.sort((a, b) => b.count - a.count).slice(0, 10); // Increased to capture more table variants
 }
 
 /**
@@ -2121,7 +2130,7 @@ function extractModals(): any[] {
     }
   });
 
-  return modals.sort((a, b) => b.count - a.count).slice(0, 3);
+  return modals.sort((a, b) => b.count - a.count).slice(0, 10); // Increased to capture more modal variants
 }
 
 /**
@@ -2178,7 +2187,8 @@ function extractBadges(): any[] {
   const badges: any[] = [];
   const seen = new Map<string, any>();
 
-  const badgeSelectors = '[class*="badge"], [class*="tag"], [class*="chip"], [class*="pill"], [class*="label"]:not(label)';
+  // Expanded to catch more badge/tag patterns including data attributes
+  const badgeSelectors = '[class*="badge"], [class*="tag"], [class*="chip"], [class*="pill"], [class*="label"]:not(label), [data-badge], [data-tag], [role="status"]';
   const elements = document.querySelectorAll(badgeSelectors);
 
   elements.forEach(badge => {
@@ -2245,7 +2255,8 @@ function extractAvatars(): any[] {
   const avatars: any[] = [];
   const seen = new Map<string, any>();
 
-  const avatarSelectors = '[class*="avatar"], img[class*="profile"], img[class*="user"]';
+  // Expanded to catch more avatar patterns including data attributes
+  const avatarSelectors = '[class*="avatar"], img[class*="profile"], img[class*="user"], [data-avatar], [role="img"][class*="user"], [role="img"][class*="profile"]';
   const elements = document.querySelectorAll(avatarSelectors);
 
   elements.forEach(avatar => {
@@ -2749,18 +2760,47 @@ function extractIcons(): any {
     sizes: new Map<string, number>()
   };
 
-  // Extract SVG icons
-  const svgs = document.querySelectorAll('svg[class*="icon"], svg[width], svg[height]');
+  // Extract SVG icons - catch ALL svgs, not just ones with specific attributes
+  const svgs = document.querySelectorAll('svg');
   const svgPatterns = new Map<string, any>();
 
   svgs.forEach(svg => {
     const el = svg as SVGElement;
-    const width = el.getAttribute('width') || el.getBoundingClientRect().width;
-    const height = el.getAttribute('height') || el.getBoundingClientRect().height;
+
+    // Try multiple methods to get dimensions
+    let width = parseFloat(el.getAttribute('width') || '0');
+    let height = parseFloat(el.getAttribute('height') || '0');
+
+    // If no width/height attributes, try bounding box
+    if (!width || !height || isNaN(width) || isNaN(height)) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        width = rect.width;
+        height = rect.height;
+      }
+    }
+
+    // If still no dimensions, try viewBox
+    if ((!width || !height || isNaN(width) || isNaN(height))) {
+      const viewBox = el.getAttribute('viewBox');
+      if (viewBox) {
+        const parts = viewBox.split(/\s+/);
+        if (parts.length === 4) {
+          width = parseFloat(parts[2]) || width;
+          height = parseFloat(parts[3]) || height;
+        }
+      }
+    }
+
+    // Skip if we still don't have valid dimensions
+    if (!width || !height || isNaN(width) || isNaN(height) || width === 0 || height === 0) {
+      return; // Skip this SVG
+    }
+
     const viewBox = el.getAttribute('viewBox');
     const className = el.className.baseVal || '';
 
-    const size = `${Math.round(Number(width))}x${Math.round(Number(height))}`;
+    const size = `${Math.round(width)}x${Math.round(height)}`;
     const sizeCount = icons.sizes.get(size) || 0;
     icons.sizes.set(size, sizeCount + 1);
 
