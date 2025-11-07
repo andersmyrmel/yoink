@@ -49,7 +49,12 @@ function extractStyles(includeComponents: boolean = true): any {
     colorUsage: colorData.usage,
     fonts: extractFonts(),
     borderRadius: extractBorderRadius(),
-    shadows: extractShadows()
+    shadows: extractShadows(),
+    layout: extractLayoutStructure(),
+    icons: extractIcons(),
+    gradients: extractGradients(),
+    responsive: extractResponsiveBreakpoints(),
+    scrollbars: extractScrollbarStyles()
   };
 
   // Add component patterns and context if requested
@@ -58,6 +63,10 @@ function extractStyles(includeComponents: boolean = true): any {
     styleData.typographyContext = extractTypographyContext();
     styleData.colorContext = extractColorContext();
     styleData.layoutPatterns = extractLayoutPatterns();
+    styleData.flexboxPatterns = extractFlexboxPatterns();
+    styleData.componentComposition = extractComponentComposition();
+    styleData.zIndex = extractZIndexHierarchy();
+    styleData.animations = extractAnimations();
   }
 
   return styleData;
@@ -367,24 +376,729 @@ function extractBorderRadius(): string[] {
 }
 
 /**
- * Extracts box shadow values
+ * Parsed shadow data structure
  */
-function extractShadows(): string[] {
-  const shadows = new Set<string>();
-  const elements = document.querySelectorAll('*');
-  const maxElements = Math.min(elements.length, 50);
+interface ParsedShadow {
+  offsetX: number;
+  offsetY: number;
+  blur: number;
+  spread: number;
+  color: string;
+  inset: boolean;
+  raw: string;
+}
 
+/**
+ * Shadow group with elevation level
+ */
+interface ShadowGroup {
+  shadows: ParsedShadow[];
+  elevationLevel: number;
+  name: string;
+  count: number;
+  intensity: number;
+  representative: string;
+}
+
+/**
+ * Shadow system analysis result
+ */
+interface ShadowSystem {
+  elevationLevels: ShadowGroup[];
+  pattern: string;
+  totalUniqueShadows: number;
+}
+
+/**
+ * Extracts and analyzes box shadow values with elevation levels
+ */
+function extractShadows(): ShadowSystem {
+  const shadowUsage = new Map<string, number>();
+  const elements = document.querySelectorAll('*');
+  const maxElements = Math.min(elements.length, 500);
+
+  // Collect all shadows with usage counts
   for (let i = 0; i < maxElements; i++) {
     const element = elements[i];
     const styles = window.getComputedStyle(element);
     const boxShadow = styles.boxShadow;
 
     if (boxShadow && boxShadow !== 'none') {
-      shadows.add(boxShadow);
+      shadowUsage.set(boxShadow, (shadowUsage.get(boxShadow) || 0) + 1);
     }
   }
 
-  return Array.from(shadows).slice(0, 5);
+  // Parse all unique shadows
+  const parsedShadows: Array<{ parsed: ParsedShadow; count: number }> = [];
+  for (const [shadowStr, count] of shadowUsage.entries()) {
+    const parsed = parseShadow(shadowStr);
+    if (parsed) {
+      parsedShadows.push({ parsed, count });
+    }
+  }
+
+  // Group similar shadows and assign elevation levels
+  const shadowGroups = groupShadowsByElevation(parsedShadows);
+
+  // Detect pattern (Material Design, custom, etc.)
+  const pattern = detectShadowPattern(shadowGroups);
+
+  return {
+    elevationLevels: shadowGroups,
+    pattern,
+    totalUniqueShadows: shadowUsage.size
+  };
+}
+
+/**
+ * Parses a CSS box-shadow string into structured data
+ * Handles both single and multiple shadows (comma-separated)
+ */
+function parseShadow(shadowStr: string): ParsedShadow | null {
+  if (!shadowStr || shadowStr === 'none') return null;
+
+  // For multiple shadows, take the most prominent one (first non-inset)
+  const shadows = shadowStr.split(/,(?![^(]*\))/);
+
+  for (const shadow of shadows) {
+    const trimmed = shadow.trim();
+
+    // Check for inset
+    const inset = trimmed.startsWith('inset');
+    const cleanShadow = trimmed.replace(/^inset\s+/, '');
+
+    // Parse shadow components: offsetX offsetY blur spread color
+    // Match patterns like: "0px 2px 8px 0px rgba(0, 0, 0, 0.1)"
+    const regex = /([-\d.]+)px\s+([-\d.]+)px\s+([-\d.]+)px(?:\s+([-\d.]+)px)?\s+(.+)/;
+    const match = cleanShadow.match(regex);
+
+    if (match) {
+      const [, offsetX, offsetY, blur, spread, color] = match;
+
+      return {
+        offsetX: parseFloat(offsetX),
+        offsetY: parseFloat(offsetY),
+        blur: parseFloat(blur),
+        spread: spread ? parseFloat(spread) : 0,
+        color: color.trim(),
+        inset,
+        raw: shadowStr
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Calculates shadow intensity for grouping and sorting
+ * Higher blur and offset = higher intensity
+ */
+function calculateShadowIntensity(shadow: ParsedShadow): number {
+  // Blur is the primary factor for elevation
+  const blurWeight = shadow.blur * 3;
+
+  // Y offset is secondary (shadows usually go down)
+  const offsetWeight = Math.abs(shadow.offsetY) * 1.5;
+
+  // Spread adds subtle depth
+  const spreadWeight = Math.abs(shadow.spread) * 0.5;
+
+  return blurWeight + offsetWeight + spreadWeight;
+}
+
+/**
+ * Groups shadows by elevation level (0-5)
+ */
+function groupShadowsByElevation(
+  shadows: Array<{ parsed: ParsedShadow; count: number }>
+): ShadowGroup[] {
+  if (shadows.length === 0) {
+    return [];
+  }
+
+  // Calculate intensity for each shadow
+  const shadowsWithIntensity = shadows.map(({ parsed, count }) => ({
+    parsed,
+    count,
+    intensity: calculateShadowIntensity(parsed)
+  }));
+
+  // Sort by intensity
+  shadowsWithIntensity.sort((a, b) => a.intensity - b.intensity);
+
+  // Define elevation levels based on intensity ranges
+  const elevationRanges = [
+    { level: 0, name: 'None', min: 0, max: 5 },
+    { level: 1, name: 'Subtle', min: 5, max: 25 },
+    { level: 2, name: 'Moderate', min: 25, max: 50 },
+    { level: 3, name: 'Strong', min: 50, max: 80 },
+    { level: 4, name: 'Heavy', min: 80, max: 120 },
+    { level: 5, name: 'Extra Heavy', min: 120, max: Infinity }
+  ];
+
+  // Group shadows into elevation levels
+  const groups: ShadowGroup[] = [];
+
+  for (const range of elevationRanges) {
+    const shadowsInRange = shadowsWithIntensity.filter(
+      s => s.intensity >= range.min && s.intensity < range.max
+    );
+
+    if (shadowsInRange.length > 0) {
+      // Merge similar shadows within the same elevation level
+      const merged = mergeSimilarShadows(shadowsInRange);
+
+      if (merged.length > 0) {
+        // Pick the most common shadow as representative
+        merged.sort((a, b) => b.count - a.count);
+        const representative = merged[0].parsed;
+
+        groups.push({
+          shadows: merged.map(s => s.parsed),
+          elevationLevel: range.level,
+          name: range.name,
+          count: merged.reduce((sum, s) => sum + s.count, 0),
+          intensity: merged[0].intensity,
+          representative: representative.raw
+        });
+      }
+    }
+  }
+
+  return groups;
+}
+
+/**
+ * Merges visually similar shadows within a group
+ */
+function mergeSimilarShadows(
+  shadows: Array<{ parsed: ParsedShadow; count: number; intensity: number }>
+): Array<{ parsed: ParsedShadow; count: number; intensity: number }> {
+  if (shadows.length <= 1) return shadows;
+
+  const merged: Array<{ parsed: ParsedShadow; count: number; intensity: number }> = [];
+  const used = new Set<number>();
+
+  for (let i = 0; i < shadows.length; i++) {
+    if (used.has(i)) continue;
+
+    const current = shadows[i];
+    let totalCount = current.count;
+
+    // Find similar shadows
+    for (let j = i + 1; j < shadows.length; j++) {
+      if (used.has(j)) continue;
+
+      const other = shadows[j];
+
+      // Check if shadows are similar (within 20% intensity difference)
+      const intensityDiff = Math.abs(current.intensity - other.intensity);
+      const avgIntensity = (current.intensity + other.intensity) / 2;
+
+      if (intensityDiff / avgIntensity < 0.2) {
+        totalCount += other.count;
+        used.add(j);
+      }
+    }
+
+    merged.push({
+      parsed: current.parsed,
+      count: totalCount,
+      intensity: current.intensity
+    });
+    used.add(i);
+  }
+
+  return merged;
+}
+
+/**
+ * Detects shadow system pattern (Material Design, custom, etc.)
+ */
+function detectShadowPattern(groups: ShadowGroup[]): string {
+  if (groups.length === 0) return 'No shadows detected';
+  if (groups.length === 1) return 'Single shadow style';
+
+  // Check for Material Design pattern
+  // Material uses specific elevation levels with predictable blur/offset ratios
+  const hasMaterialPattern = groups.some(g => {
+    const shadow = g.shadows[0];
+    // Material Design shadows typically have blur/offsetY ratio around 2-3
+    const ratio = shadow.blur / Math.abs(shadow.offsetY || 1);
+    return ratio >= 1.5 && ratio <= 4 && shadow.offsetY > 0;
+  });
+
+  if (hasMaterialPattern && groups.length >= 3) {
+    return 'Material Design inspired (elevation-based)';
+  }
+
+  // Check for geometric progression
+  if (groups.length >= 3) {
+    const intensities = groups.map(g => g.intensity);
+    const ratios: number[] = [];
+
+    for (let i = 1; i < intensities.length; i++) {
+      ratios.push(intensities[i] / intensities[i - 1]);
+    }
+
+    const avgRatio = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+
+    if (avgRatio >= 1.4 && avgRatio <= 2.5) {
+      return `Custom scale (~${avgRatio.toFixed(1)}x progression)`;
+    }
+  }
+
+  return `Custom shadow system (${groups.length} levels)`;
+}
+
+/**
+ * Extracts layout structure patterns (fixed/sticky positioning, sidebars, containers, grids)
+ */
+function extractLayoutStructure(): any {
+  const layouts: any = {
+    fixedElements: [],
+    stickyElements: [],
+    containers: [],
+    grids: [],
+    sidebars: []
+  };
+
+  const allElements = document.querySelectorAll('*');
+  const MAX_ELEMENTS = 1000;
+  const elementsToCheck = Array.from(allElements).slice(0, MAX_ELEMENTS);
+
+  elementsToCheck.forEach(el => {
+    const element = el as HTMLElement;
+    const styles = window.getComputedStyle(element);
+    const position = styles.position;
+    const display = styles.display;
+
+    // Detect fixed positioned elements
+    if (position === 'fixed') {
+      const rect = element.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+      const left = parseFloat(styles.left);
+      const right = parseFloat(styles.right);
+      const top = parseFloat(styles.top);
+      const bottom = parseFloat(styles.bottom);
+
+      // Detect sidebars (fixed, tall, on left or right edge)
+      const isSidebar = height > window.innerHeight * 0.5 &&
+                       width < window.innerWidth * 0.4 &&
+                       (left === 0 || right === 0 || left < 50 || right < 50);
+
+      if (isSidebar) {
+        layouts.sidebars.push({
+          width: `${Math.round(width)}px`,
+          position: left === 0 || left < 50 ? 'left' : 'right',
+          backgroundColor: styles.backgroundColor,
+          zIndex: styles.zIndex
+        });
+      } else {
+        layouts.fixedElements.push({
+          position: 'fixed',
+          width: `${Math.round(width)}px`,
+          height: `${Math.round(height)}px`,
+          top: isNaN(top) ? 'auto' : `${Math.round(top)}px`,
+          left: isNaN(left) ? 'auto' : `${Math.round(left)}px`,
+          right: isNaN(right) ? 'auto' : `${Math.round(right)}px`,
+          bottom: isNaN(bottom) ? 'auto' : `${Math.round(bottom)}px`,
+          zIndex: styles.zIndex
+        });
+      }
+    }
+
+    // Detect sticky positioned elements
+    if (position === 'sticky' || position === '-webkit-sticky') {
+      layouts.stickyElements.push({
+        position: 'sticky',
+        top: styles.top,
+        zIndex: styles.zIndex
+      });
+    }
+
+    // Detect main containers (high-level layout containers)
+    const maxWidth = styles.maxWidth;
+    if (maxWidth && maxWidth !== 'none' && parseFloat(maxWidth) > 600) {
+      const marginLeft = styles.marginLeft;
+      const marginRight = styles.marginRight;
+      const isCentered = marginLeft === 'auto' && marginRight === 'auto';
+
+      layouts.containers.push({
+        maxWidth,
+        centered: isCentered,
+        padding: styles.padding
+      });
+    }
+
+    // Detect grid layouts
+    if (display === 'grid') {
+      const gridTemplateColumns = styles.gridTemplateColumns;
+      const gap = styles.gap || styles.gridGap;
+
+      if (gridTemplateColumns && gridTemplateColumns !== 'none') {
+        layouts.grids.push({
+          columns: gridTemplateColumns,
+          gap: gap || '0px',
+          alignItems: styles.alignItems,
+          justifyItems: styles.justifyItems
+        });
+      }
+    }
+  });
+
+  // Deduplicate similar entries
+  layouts.sidebars = deduplicateByKey(layouts.sidebars, ['width', 'position']);
+  layouts.fixedElements = deduplicateByKey(layouts.fixedElements, ['width', 'height', 'top']);
+  layouts.stickyElements = deduplicateByKey(layouts.stickyElements, ['top']);
+  layouts.containers = deduplicateByKey(layouts.containers, ['maxWidth']);
+  layouts.grids = deduplicateByKey(layouts.grids, ['columns', 'gap']);
+
+  return layouts;
+}
+
+/**
+ * Extracts flexbox patterns
+ */
+function extractFlexboxPatterns(): any {
+  const flexPatterns = new Map<string, any>();
+  const allElements = document.querySelectorAll('*');
+  const MAX_ELEMENTS = 1000;
+  const elementsToCheck = Array.from(allElements).slice(0, MAX_ELEMENTS);
+
+  elementsToCheck.forEach(el => {
+    const element = el as HTMLElement;
+    const styles = window.getComputedStyle(element);
+
+    if (styles.display === 'flex' || styles.display === 'inline-flex') {
+      const pattern = {
+        flexDirection: styles.flexDirection,
+        justifyContent: styles.justifyContent,
+        alignItems: styles.alignItems,
+        gap: styles.gap,
+        flexWrap: styles.flexWrap
+      };
+
+      const signature = `${pattern.flexDirection}-${pattern.justifyContent}-${pattern.alignItems}-${pattern.gap}`;
+
+      if (flexPatterns.has(signature)) {
+        const existing = flexPatterns.get(signature)!;
+        existing.count++;
+      } else {
+        flexPatterns.set(signature, { ...pattern, count: 1 });
+      }
+    }
+  });
+
+  return Array.from(flexPatterns.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+}
+
+/**
+ * Extracts gradient patterns from backgrounds
+ */
+function extractGradients(): any[] {
+  const gradients: any[] = [];
+  const seen = new Set<string>();
+
+  const allElements = document.querySelectorAll('*');
+  const MAX_ELEMENTS = 1000;
+  const elementsToCheck = Array.from(allElements).slice(0, MAX_ELEMENTS);
+
+  elementsToCheck.forEach(el => {
+    const element = el as HTMLElement;
+    const styles = window.getComputedStyle(element);
+    const backgroundImage = styles.backgroundImage;
+
+    // Check for gradient
+    if (backgroundImage && (backgroundImage.includes('gradient'))) {
+      // Normalize the gradient string
+      const normalized = backgroundImage.replace(/\s+/g, ' ').trim();
+
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+
+        // Detect gradient type
+        let type = 'linear';
+        if (normalized.includes('radial-gradient')) type = 'radial';
+        if (normalized.includes('conic-gradient')) type = 'conic';
+
+        gradients.push({
+          type,
+          value: normalized,
+          count: 1
+        });
+      } else {
+        // Increment count if we've seen it
+        const existing = gradients.find(g => g.value === normalized);
+        if (existing) existing.count++;
+      }
+    }
+  });
+
+  return gradients.sort((a, b) => b.count - a.count).slice(0, 10);
+}
+
+/**
+ * Extracts component composition and nesting patterns
+ */
+function extractComponentComposition(): any {
+  const compositions: any[] = [];
+
+  // Look for common composition patterns
+  const patterns = [
+    {
+      name: 'card-with-button',
+      selector: '[class*="card"], article',
+      childSelector: 'button, [role="button"]'
+    },
+    {
+      name: 'card-with-image',
+      selector: '[class*="card"], article',
+      childSelector: 'img'
+    },
+    {
+      name: 'modal-with-form',
+      selector: '[role="dialog"], [class*="modal"]',
+      childSelector: 'form, input, textarea'
+    },
+    {
+      name: 'nav-with-dropdown',
+      selector: 'nav, [role="navigation"]',
+      childSelector: '[role="menu"], [class*="dropdown"]'
+    },
+    {
+      name: 'table-with-actions',
+      selector: 'table, [role="table"]',
+      childSelector: 'button, [class*="action"]'
+    },
+    {
+      name: 'form-with-validation',
+      selector: 'form',
+      childSelector: '[class*="error"], [class*="invalid"], [aria-invalid="true"]'
+    },
+    {
+      name: 'button-with-icon',
+      selector: 'button, [role="button"]',
+      childSelector: 'svg, [class*="icon"]'
+    },
+    {
+      name: 'input-with-label',
+      selector: 'input, textarea, select',
+      childSelector: 'label'
+    },
+    {
+      name: 'list-with-avatars',
+      selector: 'ul, ol, [role="list"]',
+      childSelector: '[class*="avatar"], img[class*="profile"]'
+    }
+  ];
+
+  patterns.forEach(pattern => {
+    const containers = document.querySelectorAll(pattern.selector);
+    let count = 0;
+
+    containers.forEach(container => {
+      const children = container.querySelectorAll(pattern.childSelector);
+      if (children.length > 0) {
+        count++;
+      }
+    });
+
+    if (count > 0) {
+      compositions.push({
+        pattern: pattern.name,
+        count,
+        description: `${pattern.selector} containing ${pattern.childSelector}`
+      });
+    }
+  });
+
+  return compositions.sort((a, b) => b.count - a.count);
+}
+
+/**
+ * Extracts z-index hierarchy and organizes into layers
+ */
+function extractZIndexHierarchy(): any {
+  const zIndexMap = new Map<number, { elements: number; contexts: string[] }>();
+
+  const allElements = document.querySelectorAll('*');
+  const MAX_ELEMENTS = 1000;
+  const elementsToCheck = Array.from(allElements).slice(0, MAX_ELEMENTS);
+
+  elementsToCheck.forEach(el => {
+    const element = el as HTMLElement;
+    const styles = window.getComputedStyle(element);
+    const zIndex = parseInt(styles.zIndex, 10);
+
+    if (!isNaN(zIndex) && zIndex !== 0) {
+      const position = styles.position;
+
+      // z-index only works on positioned elements
+      if (position !== 'static') {
+        const existing = zIndexMap.get(zIndex) || { elements: 0, contexts: [] };
+        existing.elements += 1;
+
+        // Detect context by class names
+        const className = element.className.toString().toLowerCase();
+        if (className.includes('modal') && !existing.contexts.includes('modal')) {
+          existing.contexts.push('modal');
+        } else if (className.includes('dropdown') && !existing.contexts.includes('dropdown')) {
+          existing.contexts.push('dropdown');
+        } else if (className.includes('tooltip') && !existing.contexts.includes('tooltip')) {
+          existing.contexts.push('tooltip');
+        } else if (className.includes('toast') || className.includes('notification')) {
+          if (!existing.contexts.includes('toast')) existing.contexts.push('toast');
+        } else if (className.includes('header') || className.includes('nav')) {
+          if (!existing.contexts.includes('navigation')) existing.contexts.push('navigation');
+        } else if (className.includes('sidebar')) {
+          if (!existing.contexts.includes('sidebar')) existing.contexts.push('sidebar');
+        }
+
+        zIndexMap.set(zIndex, existing);
+      }
+    }
+  });
+
+  // Convert to sorted array
+  const hierarchy = Array.from(zIndexMap.entries())
+    .map(([zIndex, data]) => ({
+      zIndex,
+      elements: data.elements,
+      contexts: data.contexts.length > 0 ? data.contexts : ['base']
+    }))
+    .sort((a, b) => a.zIndex - b.zIndex);
+
+  // Organize into semantic layers
+  const layers: any = {
+    base: [],      // z-index 1-10
+    dropdown: [],  // z-index 10-100
+    modal: [],     // z-index 100-1000
+    toast: []      // z-index 1000+
+  };
+
+  hierarchy.forEach(item => {
+    if (item.zIndex < 10) {
+      layers.base.push(item);
+    } else if (item.zIndex < 100) {
+      layers.dropdown.push(item);
+    } else if (item.zIndex < 1000) {
+      layers.modal.push(item);
+    } else {
+      layers.toast.push(item);
+    }
+  });
+
+  return {
+    hierarchy,
+    layers,
+    range: hierarchy.length > 0 ? {
+      min: hierarchy[0].zIndex,
+      max: hierarchy[hierarchy.length - 1].zIndex
+    } : null
+  };
+}
+
+/**
+ * Extracts animations and transition patterns
+ */
+function extractAnimations(): any {
+  const transitions = new Map<string, number>();
+  const animations = new Map<string, number>();
+
+  const allElements = document.querySelectorAll('*');
+  const MAX_ELEMENTS = 1000;
+  const elementsToCheck = Array.from(allElements).slice(0, MAX_ELEMENTS);
+
+  elementsToCheck.forEach(el => {
+    const element = el as HTMLElement;
+    const styles = window.getComputedStyle(element);
+
+    // Extract transitions
+    const transition = styles.transition;
+    if (transition && transition !== 'all 0s ease 0s' && transition !== 'none') {
+      const count = transitions.get(transition) || 0;
+      transitions.set(transition, count + 1);
+    }
+
+    // Extract animations
+    const animation = styles.animation;
+    if (animation && animation !== 'none') {
+      const count = animations.get(animation) || 0;
+      animations.set(animation, count + 1);
+    }
+  });
+
+  // Parse common transition patterns
+  const transitionPatterns: any[] = [];
+  transitions.forEach((count, transition) => {
+    // Parse transition string
+    const parts = transition.split(',').map(t => t.trim());
+    parts.forEach(part => {
+      const match = part.match(/^([\w-]+)\s+([\d.]+m?s)\s+([\w-]+)(?:\s+([\d.]+m?s))?/);
+      if (match) {
+        transitionPatterns.push({
+          property: match[1],
+          duration: match[2],
+          easing: match[3],
+          delay: match[4] || '0s',
+          count
+        });
+      }
+    });
+  });
+
+  // Deduplicate and sort by count
+  const uniqueTransitions = deduplicateByKey(transitionPatterns, ['property', 'duration', 'easing'])
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 20);
+
+  const uniqueAnimations = Array.from(animations.entries())
+    .map(([animation, count]) => ({ animation, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  // Extract common durations and easings
+  const durations = new Map<string, number>();
+  const easings = new Map<string, number>();
+
+  uniqueTransitions.forEach(t => {
+    const dCount = durations.get(t.duration) || 0;
+    durations.set(t.duration, dCount + t.count);
+
+    const eCount = easings.get(t.easing) || 0;
+    easings.set(t.easing, eCount + t.count);
+  });
+
+  return {
+    transitions: uniqueTransitions,
+    animations: uniqueAnimations,
+    commonDurations: Array.from(durations.entries())
+      .map(([duration, count]) => ({ duration, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5),
+    commonEasings: Array.from(easings.entries())
+      .map(([easing, count]) => ({ easing, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+  };
+}
+
+/**
+ * Helper function to deduplicate array of objects by specified keys
+ */
+function deduplicateByKey(arr: any[], keys: string[]): any[] {
+  const seen = new Set<string>();
+  return arr.filter(item => {
+    const key = keys.map(k => item[k]).join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /**
@@ -396,7 +1110,29 @@ function extractComponents(): any {
     cards: extractCards(),
     inputs: extractInputs(),
     navigation: extractNavigation(),
-    headings: extractHeadings()
+    headings: extractHeadings(),
+    dropdowns: extractDropdowns(),
+    tables: extractTables(),
+    modals: extractModals(),
+    tooltips: extractTooltips(),
+    badges: extractBadges(),
+    avatars: extractAvatars(),
+    tabs: extractTabs(),
+    accordions: extractAccordions(),
+    progress: extractProgress(),
+    breadcrumbs: extractBreadcrumbs(),
+    pagination: extractPagination(),
+    alerts: extractAlerts(),
+    searchBars: extractSearchBars(),
+    toggles: extractToggles(),
+    dividers: extractDividers(),
+    skeletons: extractSkeletonStates(),
+    emptyStates: extractEmptyStates(),
+    datePickers: extractDatePickers(),
+    colorPickers: extractColorPickers(),
+    richTextEditors: extractRichTextEditors(),
+    sliders: extractSliders(),
+    comboboxes: extractComboboxes()
   };
 }
 
@@ -442,46 +1178,133 @@ function getCleanHTML(element: HTMLElement): string {
 }
 
 /**
- * Extracts hover, focus, and disabled states from classes
+ * Extracts interactive state styles (hover, focus, active, disabled) from CSS and element
  */
 function extractStateStyles(element: HTMLElement): any {
   const states: any = {};
-  const classes = Array.from(element.classList);
 
-  // Extract hover states
-  const hoverClasses = classes.filter(c => c.includes('hover:'));
-  if (hoverClasses.length > 0) {
-    states.hover = {};
-    hoverClasses.forEach(cls => {
-      const parts = cls.split('hover:')[1];
-      if (parts.includes('bg-')) states.hover.background = parts;
-      if (parts.includes('text-')) states.hover.color = parts;
-      if (parts.includes('opacity-')) states.hover.opacity = parts;
+  // Try to get state styles from CSS rules matching this element
+  try {
+    const matchingRules = getMatchingCSSRules(element);
+
+    matchingRules.forEach(rule => {
+      const selectorText = rule.selectorText;
+
+      // Check for :hover pseudo-class
+      if (selectorText.includes(':hover')) {
+        if (!states.hover) states.hover = {};
+        const style = rule.style;
+        if (style.backgroundColor) states.hover.backgroundColor = style.backgroundColor;
+        if (style.color) states.hover.color = style.color;
+        if (style.opacity) states.hover.opacity = style.opacity;
+        if (style.transform) states.hover.transform = style.transform;
+        if (style.boxShadow) states.hover.boxShadow = style.boxShadow;
+        if (style.borderColor) states.hover.borderColor = style.borderColor;
+      }
+
+      // Check for :focus pseudo-class
+      if (selectorText.includes(':focus')) {
+        if (!states.focus) states.focus = {};
+        const style = rule.style;
+        if (style.outline) states.focus.outline = style.outline;
+        if (style.boxShadow) states.focus.boxShadow = style.boxShadow;
+        if (style.borderColor) states.focus.borderColor = style.borderColor;
+      }
+
+      // Check for :active pseudo-class
+      if (selectorText.includes(':active')) {
+        if (!states.active) states.active = {};
+        const style = rule.style;
+        if (style.backgroundColor) states.active.backgroundColor = style.backgroundColor;
+        if (style.transform) states.active.transform = style.transform;
+        if (style.boxShadow) states.active.boxShadow = style.boxShadow;
+      }
+
+      // Check for :disabled pseudo-class
+      if (selectorText.includes(':disabled')) {
+        if (!states.disabled) states.disabled = {};
+        const style = rule.style;
+        if (style.opacity) states.disabled.opacity = style.opacity;
+        if (style.cursor) states.disabled.cursor = style.cursor;
+        if (style.backgroundColor) states.disabled.backgroundColor = style.backgroundColor;
+      }
     });
+  } catch (e) {
+    // Fallback: check for Tailwind-style utility classes
+    const classes = Array.from(element.classList);
+
+    // Extract hover states
+    const hoverClasses = classes.filter(c => c.includes('hover:'));
+    if (hoverClasses.length > 0) {
+      states.hover = { utilityClasses: hoverClasses };
+    }
+
+    // Extract focus states
+    const focusClasses = classes.filter(c => c.includes('focus:'));
+    if (focusClasses.length > 0) {
+      states.focus = { utilityClasses: focusClasses };
+    }
+
+    // Extract disabled states
+    const disabledClasses = classes.filter(c => c.includes('disabled:'));
+    if (disabledClasses.length > 0) {
+      states.disabled = { utilityClasses: disabledClasses };
+    }
   }
 
-  // Extract focus states
-  const focusClasses = classes.filter(c => c.includes('focus:'));
-  if (focusClasses.length > 0) {
-    states.focus = {};
-    focusClasses.forEach(cls => {
-      const parts = cls.split('focus:')[1];
-      if (parts.includes('ring')) states.focus.ring = parts;
-      if (parts.includes('outline')) states.focus.outline = parts;
-    });
-  }
-
-  // Extract disabled states
-  const disabledClasses = classes.filter(c => c.includes('disabled:'));
-  if (disabledClasses.length > 0) {
-    states.disabled = {};
-    disabledClasses.forEach(cls => {
-      const parts = cls.split('disabled:')[1];
-      states.disabled[parts] = true;
-    });
+  // Check if element is actually disabled
+  if (element.hasAttribute('disabled')) {
+    if (!states.disabled) states.disabled = {};
+    states.disabled.isDisabled = true;
   }
 
   return Object.keys(states).length > 0 ? states : undefined;
+}
+
+/**
+ * Get matching CSS rules for an element (including pseudo-classes)
+ */
+function getMatchingCSSRules(element: HTMLElement): CSSStyleRule[] {
+  const rules: CSSStyleRule[] = [];
+
+  try {
+    const sheets = Array.from(document.styleSheets);
+
+    sheets.forEach(sheet => {
+      try {
+        const cssRules = Array.from(sheet.cssRules || sheet.rules || []);
+
+        cssRules.forEach(rule => {
+          if (rule instanceof CSSStyleRule) {
+            const selectorText = rule.selectorText;
+
+            // Check if selector matches this element (ignoring pseudo-classes for matching)
+            const baseSelector = selectorText.replace(/:(hover|focus|active|disabled|visited|checked)/g, '');
+
+            try {
+              if (element.matches(baseSelector)) {
+                // Include rules with pseudo-classes
+                if (selectorText.includes(':hover') ||
+                    selectorText.includes(':focus') ||
+                    selectorText.includes(':active') ||
+                    selectorText.includes(':disabled')) {
+                  rules.push(rule);
+                }
+              }
+            } catch (e) {
+              // Invalid selector, skip
+            }
+          }
+        });
+      } catch (e) {
+        // Cross-origin stylesheet, skip
+      }
+    });
+  } catch (e) {
+    // Error accessing stylesheets
+  }
+
+  return rules;
 }
 
 /**
@@ -896,24 +1719,25 @@ function extractButtons(): any[] {
 }
 
 /**
- * Extracts card components
+ * Extracts card components with interactive states
  */
 function extractCards(): any[] {
   const cards: any[] = [];
   const seen = new Map<string, any>();
 
   // Look for elements that look like cards
-  const cardSelectors = '[class*="card"], article, [class*="panel"], [class*="box"]';
+  const cardSelectors = '[class*="card"], article, [class*="panel"], [class*="box"], [class*="item"]';
   const elements = document.querySelectorAll(cardSelectors);
 
   elements.forEach(card => {
     const styles = getComputedStyle(card);
 
-    // Filter: must have border or shadow to be considered a card
+    // Filter: must have border or shadow or background to be considered a card
     const hasBorder = styles.border !== 'none' && styles.borderWidth !== '0px';
     const hasShadow = styles.boxShadow !== 'none';
+    const hasBackground = styles.backgroundColor !== 'rgba(0, 0, 0, 0)' && styles.backgroundColor !== 'transparent';
 
-    if (!hasBorder && !hasShadow) return;
+    if (!hasBorder && !hasShadow && !hasBackground) return;
 
     const signature = createStyleSignature(card as HTMLElement);
 
@@ -927,15 +1751,18 @@ function extractCards(): any[] {
         borderRadius: styles.borderRadius,
         padding: styles.padding,
         boxShadow: styles.boxShadow,
-        margin: styles.margin
+        margin: styles.margin,
+        display: styles.display,
+        width: styles.width
       };
 
       const variant: any = {
-        html: (card as HTMLElement).outerHTML.substring(0, 500),
+        html: getCleanHTML(card as HTMLElement),
         classes: (card as HTMLElement).className || '',
         styles: componentStyles,
-        variant: 'card',
-        count: 1
+        variant: inferCardVariant(card as HTMLElement),
+        count: 1,
+        states: extractStateStyles(card as HTMLElement)
       };
 
       cards.push(variant);
@@ -943,22 +1770,40 @@ function extractCards(): any[] {
     }
   });
 
-  return cards.sort((a, b) => b.count - a.count).slice(0, 3);
+  return cards.sort((a, b) => b.count - a.count).slice(0, 10); // Increased to capture more card variants
 }
 
 /**
- * Extracts form input components
+ * Infers card variant from classes or structure
+ */
+function inferCardVariant(card: HTMLElement): string {
+  const className = card.className.toLowerCase();
+
+  if (className.includes('elevated') || className.includes('raised')) return 'elevated';
+  if (className.includes('flat') || className.includes('outlined')) return 'flat';
+  if (className.includes('interactive') || className.includes('clickable')) return 'interactive';
+  if (card.querySelector('img, video')) return 'media';
+
+  return 'default';
+}
+
+/**
+ * Extracts form input components with states and types
  */
 function extractInputs(): any[] {
   const inputs: any[] = [];
   const seen = new Map<string, any>();
 
-  const inputSelectors = 'input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, select';
+  // Expanded to catch custom input implementations (contenteditable, role="textbox", etc.)
+  const inputSelectors = 'input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, select, [role="textbox"], [role="searchbox"], [role="combobox"], [contenteditable="true"], [class*="input"]:not(input)';
   const elements = document.querySelectorAll(inputSelectors);
 
   elements.forEach(input => {
     const styles = getComputedStyle(input);
-    const signature = createStyleSignature(input as HTMLElement);
+    const el = input as HTMLElement;
+    const inputType = (input as HTMLInputElement).type || el.tagName.toLowerCase();
+
+    const signature = createStyleSignature(el);
 
     if (seen.has(signature)) {
       const existing = seen.get(signature)!;
@@ -971,15 +1816,18 @@ function extractInputs(): any[] {
         borderRadius: styles.borderRadius,
         padding: styles.padding,
         fontSize: styles.fontSize,
-        height: styles.height
+        height: styles.height,
+        width: styles.width
       };
 
       const variant: any = {
-        html: (input as HTMLElement).outerHTML.substring(0, 500),
-        classes: (input as HTMLElement).className || '',
+        html: getCleanHTML(el),
+        classes: el.className || '',
         styles: componentStyles,
-        variant: (input as HTMLElement).tagName.toLowerCase(),
-        count: 1
+        type: inputType,
+        variant: inferInputVariant(el, inputType),
+        count: 1,
+        states: extractStateStyles(el)
       };
 
       inputs.push(variant);
@@ -987,22 +1835,41 @@ function extractInputs(): any[] {
     }
   });
 
-  return inputs.sort((a, b) => b.count - a.count).slice(0, 3);
+  return inputs.sort((a, b) => b.count - a.count).slice(0, 5);
 }
 
 /**
- * Extracts navigation components
+ * Infers input variant from type and classes
+ */
+function inferInputVariant(input: HTMLElement, type: string): string {
+  const className = input.className.toLowerCase();
+
+  if (type === 'checkbox') return 'checkbox';
+  if (type === 'radio') return 'radio';
+  if (type === 'select' || input.tagName.toLowerCase() === 'select') return 'select';
+  if (type === 'textarea' || input.tagName.toLowerCase() === 'textarea') return 'textarea';
+  if (type === 'search') return 'search';
+
+  if (className.includes('error') || className.includes('invalid')) return 'text-error';
+  if (className.includes('success') || className.includes('valid')) return 'text-success';
+
+  return 'text';
+}
+
+/**
+ * Extracts navigation components with active states
  */
 function extractNavigation(): any[] {
   const navItems: any[] = [];
   const seen = new Map<string, any>();
 
-  const navSelectors = 'nav a, [role="navigation"] a, header a';
+  const navSelectors = 'nav a, [role="navigation"] a, header a, [class*="nav"] a, [class*="menu"] a';
   const elements = document.querySelectorAll(navSelectors);
 
   elements.forEach(navItem => {
     const styles = getComputedStyle(navItem);
-    const signature = createStyleSignature(navItem as HTMLElement);
+    const el = navItem as HTMLElement;
+    const signature = createStyleSignature(el);
 
     if (seen.has(signature)) {
       const existing = seen.get(signature)!;
@@ -1013,15 +1880,18 @@ function extractNavigation(): any[] {
         fontSize: styles.fontSize,
         fontWeight: styles.fontWeight,
         padding: styles.padding,
-        textDecoration: styles.textDecoration
+        textDecoration: styles.textDecoration,
+        background: styles.backgroundColor,
+        borderRadius: styles.borderRadius
       };
 
       const variant: any = {
-        html: (navItem as HTMLElement).outerHTML.substring(0, 500),
-        classes: (navItem as HTMLElement).className || '',
+        html: getCleanHTML(el),
+        classes: el.className || '',
         styles: componentStyles,
-        variant: 'nav-link',
-        count: 1
+        variant: inferNavVariant(el),
+        count: 1,
+        states: extractStateStyles(el)
       };
 
       navItems.push(variant);
@@ -1029,7 +1899,21 @@ function extractNavigation(): any[] {
     }
   });
 
-  return navItems.sort((a, b) => b.count - a.count).slice(0, 3);
+  return navItems.sort((a, b) => b.count - a.count).slice(0, 5);
+}
+
+/**
+ * Infers navigation variant from classes or attributes
+ */
+function inferNavVariant(navItem: HTMLElement): string {
+  const className = navItem.className.toLowerCase();
+  const isActive = className.includes('active') || navItem.getAttribute('aria-current') === 'page';
+
+  if (isActive) return 'active';
+  if (className.includes('primary')) return 'primary';
+  if (className.includes('secondary')) return 'secondary';
+
+  return 'default';
 }
 
 /**
@@ -1073,6 +1957,1406 @@ function extractHeadings(): any[] {
   });
 
   return headings.sort((a, b) => b.count - a.count);
+}
+
+/**
+ * Extracts dropdown/menu components
+ */
+function extractDropdowns(): any[] {
+  const dropdowns: any[] = [];
+  const seen = new Map<string, any>();
+
+  // Expanded to catch more dropdown patterns and custom implementations
+  const dropdownSelectors = '[role="menu"], [role="listbox"], [role="select"], [class*="dropdown"], [class*="menu"][class*="list"], [class*="popover"], [class*="select"]:not(select), [data-dropdown], [data-menu]';
+  const elements = document.querySelectorAll(dropdownSelectors);
+
+  elements.forEach(dropdown => {
+    const styles = getComputedStyle(dropdown);
+    const el = dropdown as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding,
+        boxShadow: styles.boxShadow,
+        minWidth: styles.minWidth,
+        zIndex: styles.zIndex
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'dropdown',
+        count: 1
+      };
+
+      dropdowns.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return dropdowns.sort((a, b) => b.count - a.count).slice(0, 10); // Increased to capture more dropdown variants
+}
+
+/**
+ * Extracts table components - enhanced to detect inline styles and virtualized tables (Attio, etc.)
+ */
+function extractTables(): any[] {
+  const tables: any[] = [];
+  const seen = new Map<string, any>();
+  const candidates = new Set<Element>();
+
+  // Strategy 1: Standard semantic selectors
+  const standardElements = document.querySelectorAll('table, [role="table"], [role="grid"], [role="treegrid"], [class*="table"]:not(table), [class*="data-grid"], [class*="datagrid"], [data-table], [data-grid]');
+  standardElements.forEach(el => candidates.add(el));
+
+  // Strategy 2: Radix UI scroll areas (common in Attio)
+  const radixScrollAreas = document.querySelectorAll('[data-radix-scroll-area-viewport]');
+  radixScrollAreas.forEach(scrollArea => {
+    // Look for display:table inside
+    const innerTable = scrollArea.querySelector('[style*="display"]');
+    if (innerTable) {
+      const styleAttr = innerTable.getAttribute('style') || '';
+      if (styleAttr.includes('display: table') || styleAttr.includes('display:table')) {
+        candidates.add(innerTable);
+      }
+    }
+  });
+
+  // Strategy 3: CRITICAL - Scan divs for inline styles with display:table or display:grid
+  const divsWithStyle = document.querySelectorAll('div[style*="display"]');
+  divsWithStyle.forEach(div => {
+    const styleAttr = div.getAttribute('style') || '';
+    if (styleAttr.includes('display: table') || styleAttr.includes('display:table') ||
+        styleAttr.includes('display: grid') || styleAttr.includes('display:grid')) {
+      candidates.add(div);
+    }
+  });
+
+  // Process all candidates
+  candidates.forEach(table => {
+    const el = table as HTMLElement;
+
+    // For non-table elements, verify they have table-like structure
+    if (el.tagName.toLowerCase() !== 'table') {
+      // Check for rows using multiple patterns
+      const rowSelectors = '[role="row"], [class*="row"], [data-row], [class*="grid-row"], [class*="table-row"]';
+      const rows = el.querySelectorAll(rowSelectors);
+
+      // Check computed styles (this will catch inline styles too)
+      const styles = getComputedStyle(el);
+      const isTableDisplay = styles.display === 'table' || styles.display === 'inline-table';
+      const isGridLayout = styles.display === 'grid' || styles.display === 'inline-grid';
+      const hasMultipleChildren = el.children.length > 3;
+
+      // Check for virtualization pattern (many absolutely positioned children with transforms)
+      const absoluteChildren = Array.from(el.children).filter(child => {
+        const childStyles = getComputedStyle(child as HTMLElement);
+        const hasTransform = childStyles.transform && childStyles.transform !== 'none';
+        return (childStyles.position === 'absolute' || childStyles.position === 'fixed') && hasTransform;
+      });
+      const isVirtualized = absoluteChildren.length > 5;
+
+      // Skip if it doesn't look like a table at all
+      if (!isTableDisplay && !isGridLayout && rows.length === 0 && !isVirtualized) return;
+      if (isGridLayout && !hasMultipleChildren && rows.length === 0 && !isVirtualized) return;
+    }
+
+    const styles = getComputedStyle(el);
+    const signature = `table-${styles.display}-${styles.backgroundColor}-${styles.border}-${el.children.length}`;
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        border: styles.border,
+        borderCollapse: styles.borderCollapse,
+        width: styles.width,
+        display: styles.display
+      };
+
+      // Extract header styles if present (expanded selectors)
+      const header = el.querySelector('thead, [role="rowheader"], [role="columnheader"], th, [class*="header"][class*="cell"], [class*="head"]');
+      if (header) {
+        const headerStyles = getComputedStyle(header as HTMLElement);
+        componentStyles.header = {
+          background: headerStyles.backgroundColor,
+          color: headerStyles.color,
+          fontWeight: headerStyles.fontWeight,
+          padding: headerStyles.padding
+        };
+      }
+
+      // Extract cell styles (expanded selectors for grid-based tables)
+      const cell = el.querySelector('td, [role="cell"], [role="gridcell"], [class*="cell"]:not([class*="header"])');
+      if (cell) {
+        const cellStyles = getComputedStyle(cell as HTMLElement);
+        componentStyles.cell = {
+          padding: cellStyles.padding,
+          borderBottom: cellStyles.borderBottom
+        };
+      }
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'table',
+        count: 1
+      };
+
+      tables.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return tables.sort((a, b) => b.count - a.count).slice(0, 10);
+}
+
+/**
+ * Extracts modal/dialog components
+ */
+function extractModals(): any[] {
+  const modals: any[] = [];
+  const seen = new Map<string, any>();
+
+  const modalSelectors = '[role="dialog"], [role="alertdialog"], [class*="modal"], [class*="dialog"], [aria-modal="true"]';
+  const elements = document.querySelectorAll(modalSelectors);
+
+  elements.forEach(modal => {
+    const styles = getComputedStyle(modal);
+    const el = modal as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding,
+        boxShadow: styles.boxShadow,
+        maxWidth: styles.maxWidth,
+        zIndex: styles.zIndex,
+        position: styles.position
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'modal',
+        count: 1
+      };
+
+      modals.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return modals.sort((a, b) => b.count - a.count).slice(0, 10); // Increased to capture more modal variants
+}
+
+/**
+ * Extracts tooltip and popover components
+ */
+function extractTooltips(): any[] {
+  const tooltips: any[] = [];
+  const seen = new Map<string, any>();
+
+  const tooltipSelectors = '[role="tooltip"], [class*="tooltip"], [class*="popover"]:not([role="menu"])';
+  const elements = document.querySelectorAll(tooltipSelectors);
+
+  elements.forEach(tooltip => {
+    const styles = getComputedStyle(tooltip);
+    const el = tooltip as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        color: styles.color,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding,
+        fontSize: styles.fontSize,
+        boxShadow: styles.boxShadow,
+        zIndex: styles.zIndex
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'tooltip',
+        count: 1
+      };
+
+      tooltips.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return tooltips.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts badge/tag/chip components
+ */
+function extractBadges(): any[] {
+  const badges: any[] = [];
+  const seen = new Map<string, any>();
+
+  // Expanded to catch more badge/tag patterns including data attributes
+  const badgeSelectors = '[class*="badge"], [class*="tag"], [class*="chip"], [class*="pill"], [class*="label"]:not(label), [data-badge], [data-tag], [role="status"]';
+  const elements = document.querySelectorAll(badgeSelectors);
+
+  elements.forEach(badge => {
+    const styles = getComputedStyle(badge);
+    const el = badge as HTMLElement;
+
+    // Filter: must be small and inline-like
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 200 || rect.height > 50) return;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        color: styles.color,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding,
+        fontSize: styles.fontSize,
+        fontWeight: styles.fontWeight,
+        display: styles.display
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: inferBadgeVariant(el),
+        count: 1
+      };
+
+      badges.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return badges.sort((a, b) => b.count - a.count).slice(0, 5);
+}
+
+/**
+ * Infers badge variant from classes or content
+ */
+function inferBadgeVariant(badge: HTMLElement): string {
+  const className = badge.className.toLowerCase();
+
+  if (className.includes('success') || className.includes('green')) return 'success';
+  if (className.includes('error') || className.includes('danger') || className.includes('red')) return 'error';
+  if (className.includes('warning') || className.includes('yellow')) return 'warning';
+  if (className.includes('info') || className.includes('blue')) return 'info';
+  if (className.includes('primary')) return 'primary';
+  if (className.includes('secondary') || className.includes('gray')) return 'secondary';
+
+  return 'default';
+}
+
+/**
+ * Extracts avatar components
+ */
+function extractAvatars(): any[] {
+  const avatars: any[] = [];
+  const seen = new Map<string, any>();
+
+  // Expanded to catch more avatar patterns including data attributes
+  const avatarSelectors = '[class*="avatar"], img[class*="profile"], img[class*="user"], [data-avatar], [role="img"][class*="user"], [role="img"][class*="profile"]';
+  const elements = document.querySelectorAll(avatarSelectors);
+
+  elements.forEach(avatar => {
+    const styles = getComputedStyle(avatar);
+    const el = avatar as HTMLElement;
+
+    // Filter: typically small and circular/rounded
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 200 || rect.height > 200) return;
+
+    const signature = `${Math.round(rect.width)}-${styles.borderRadius}`;
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        width: `${Math.round(rect.width)}px`,
+        height: `${Math.round(rect.height)}px`,
+        borderRadius: styles.borderRadius,
+        border: styles.border,
+        objectFit: styles.objectFit
+      };
+
+      const variant: any = {
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: inferAvatarVariant(el, styles),
+        count: 1
+      };
+
+      avatars.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return avatars.sort((a, b) => b.count - a.count).slice(0, 5);
+}
+
+/**
+ * Infers avatar variant from size and shape
+ */
+function inferAvatarVariant(avatar: HTMLElement, styles: CSSStyleDeclaration): string {
+  const borderRadius = styles.borderRadius;
+  const rect = avatar.getBoundingClientRect();
+  const size = Math.round(rect.width);
+
+  // Determine shape
+  const isCircular = borderRadius === '50%' || borderRadius === '9999px';
+  const shape = isCircular ? 'circular' : 'rounded';
+
+  // Determine size category
+  if (size <= 24) return `${shape}-xs`;
+  if (size <= 32) return `${shape}-sm`;
+  if (size <= 48) return `${shape}-md`;
+  if (size <= 64) return `${shape}-lg`;
+  return `${shape}-xl`;
+}
+
+/**
+ * Extracts tab components
+ */
+function extractTabs(): any[] {
+  const tabs: any[] = [];
+  const seen = new Map<string, any>();
+
+  const tabSelectors = '[role="tab"], [class*="tab"]:not([role="tabpanel"])';
+  const elements = document.querySelectorAll(tabSelectors);
+
+  elements.forEach(tab => {
+    const styles = getComputedStyle(tab);
+    const el = tab as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const isActive = el.getAttribute('aria-selected') === 'true' || el.className.includes('active');
+
+      const componentStyles: any = {
+        color: styles.color,
+        background: styles.backgroundColor,
+        borderBottom: styles.borderBottom,
+        padding: styles.padding,
+        fontSize: styles.fontSize,
+        fontWeight: styles.fontWeight
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: isActive ? 'active' : 'inactive',
+        count: 1,
+        states: extractStateStyles(el)
+      };
+
+      tabs.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return tabs.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts accordion/collapsible components
+ */
+function extractAccordions(): any[] {
+  const accordions: any[] = [];
+  const seen = new Map<string, any>();
+
+  const accordionSelectors = '[class*="accordion"], [class*="collapse"], details';
+  const elements = document.querySelectorAll(accordionSelectors);
+
+  elements.forEach(accordion => {
+    const styles = getComputedStyle(accordion);
+    const el = accordion as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'accordion',
+        count: 1
+      };
+
+      accordions.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return accordions.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts progress bar and spinner components
+ */
+function extractProgress(): any[] {
+  const progress: any[] = [];
+  const seen = new Map<string, any>();
+
+  const progressSelectors = '[role="progressbar"], progress, [class*="progress"], [class*="spinner"], [class*="loader"]';
+  const elements = document.querySelectorAll(progressSelectors);
+
+  elements.forEach(prog => {
+    const styles = getComputedStyle(prog);
+    const el = prog as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        color: styles.color,
+        height: styles.height,
+        width: styles.width,
+        borderRadius: styles.borderRadius
+      };
+
+      const isSpinner = el.className.toLowerCase().includes('spinner') ||
+                       el.className.toLowerCase().includes('loader');
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: isSpinner ? 'spinner' : 'progress-bar',
+        count: 1
+      };
+
+      progress.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return progress.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts breadcrumb components
+ */
+function extractBreadcrumbs(): any[] {
+  const breadcrumbs: any[] = [];
+  const seen = new Map<string, any>();
+
+  const breadcrumbSelectors = '[aria-label*="breadcrumb"], [class*="breadcrumb"], nav ol, nav ul';
+  const elements = document.querySelectorAll(breadcrumbSelectors);
+
+  elements.forEach(breadcrumb => {
+    const el = breadcrumb as HTMLElement;
+
+    // Verify it looks like a breadcrumb (has links separated by delimiters)
+    const links = el.querySelectorAll('a, span');
+    if (links.length < 2) return;
+
+    const styles = getComputedStyle(el);
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        fontSize: styles.fontSize,
+        color: styles.color,
+        display: styles.display
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'breadcrumb',
+        count: 1
+      };
+
+      breadcrumbs.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return breadcrumbs.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts pagination components
+ */
+function extractPagination(): any[] {
+  const pagination: any[] = [];
+  const seen = new Map<string, any>();
+
+  const paginationSelectors = '[role="navigation"][aria-label*="pagination"], [class*="pagination"], nav[class*="page"]';
+  const elements = document.querySelectorAll(paginationSelectors);
+
+  elements.forEach(page => {
+    const styles = getComputedStyle(page);
+    const el = page as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        display: styles.display,
+        gap: styles.gap
+      };
+
+      // Extract button/link styles from pagination items
+      const items = el.querySelectorAll('button, a, [class*="page"]');
+      if (items.length > 0) {
+        const itemStyles = getComputedStyle(items[0] as HTMLElement);
+        componentStyles.item = {
+          padding: itemStyles.padding,
+          background: itemStyles.backgroundColor,
+          border: itemStyles.border,
+          borderRadius: itemStyles.borderRadius,
+          fontSize: itemStyles.fontSize
+        };
+      }
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'pagination',
+        count: 1
+      };
+
+      pagination.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return pagination.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts alert/banner components
+ */
+function extractAlerts(): any[] {
+  const alerts: any[] = [];
+  const seen = new Map<string, any>();
+
+  const alertSelectors = '[role="alert"], [class*="alert"], [class*="banner"], [class*="notification"]:not([class*="toast"])';
+  const elements = document.querySelectorAll(alertSelectors);
+
+  elements.forEach(alert => {
+    const styles = getComputedStyle(alert);
+    const el = alert as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        color: styles.color,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding,
+        fontSize: styles.fontSize
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: inferAlertVariant(el),
+        count: 1
+      };
+
+      alerts.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return alerts.sort((a, b) => b.count - a.count).slice(0, 5);
+}
+
+/**
+ * Infers alert variant from classes or aria attributes
+ */
+function inferAlertVariant(alert: HTMLElement): string {
+  const className = alert.className.toLowerCase();
+  const role = alert.getAttribute('role');
+
+  if (className.includes('success')) return 'success';
+  if (className.includes('error') || className.includes('danger')) return 'error';
+  if (className.includes('warning')) return 'warning';
+  if (className.includes('info')) return 'info';
+  if (role === 'alert') return 'alert';
+
+  return 'default';
+}
+
+/**
+ * Extracts search bar components
+ */
+function extractSearchBars(): any[] {
+  const searches: any[] = [];
+  const seen = new Map<string, any>();
+
+  const searchSelectors = 'input[type="search"], [role="search"], [class*="search"] input';
+  const elements = document.querySelectorAll(searchSelectors);
+
+  elements.forEach(search => {
+    const styles = getComputedStyle(search);
+    const el = search as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding,
+        fontSize: styles.fontSize,
+        height: styles.height,
+        width: styles.width
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'search',
+        count: 1,
+        states: extractStateStyles(el)
+      };
+
+      searches.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return searches.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts toggle switch components
+ */
+function extractToggles(): any[] {
+  const toggles: any[] = [];
+  const seen = new Map<string, any>();
+
+  const toggleSelectors = '[role="switch"], input[type="checkbox"][class*="toggle"], input[type="checkbox"][class*="switch"], [class*="toggle"]:not(button)';
+  const elements = document.querySelectorAll(toggleSelectors);
+
+  elements.forEach(toggle => {
+    const styles = getComputedStyle(toggle);
+    const el = toggle as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        width: styles.width,
+        height: styles.height
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'toggle',
+        count: 1,
+        states: extractStateStyles(el)
+      };
+
+      toggles.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return toggles.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts divider/separator components
+ */
+function extractDividers(): any[] {
+  const dividers: any[] = [];
+  const seen = new Map<string, any>();
+
+  const dividerSelectors = 'hr, [class*="divider"], [class*="separator"], [role="separator"]';
+  const elements = document.querySelectorAll(dividerSelectors);
+
+  elements.forEach(divider => {
+    const styles = getComputedStyle(divider);
+    const el = divider as HTMLElement;
+
+    const signature = `${styles.borderTop}-${styles.borderBottom}-${styles.height}-${styles.margin}`;
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        borderTop: styles.borderTop,
+        borderBottom: styles.borderBottom,
+        height: styles.height,
+        margin: styles.margin,
+        background: styles.backgroundColor
+      };
+
+      const variant: any = {
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'divider',
+        count: 1
+      };
+
+      dividers.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return dividers.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts icon system patterns
+ */
+function extractIcons(): any {
+  const icons: any = {
+    svgIcons: [],
+    iconFonts: [],
+    sizes: new Map<string, number>()
+  };
+
+  // Extract SVG icons - catch ALL svgs, not just ones with specific attributes
+  const svgs = document.querySelectorAll('svg');
+  const svgPatterns = new Map<string, any>();
+
+  svgs.forEach(svg => {
+    const el = svg as SVGElement;
+
+    // Try multiple methods to get dimensions
+    let width = parseFloat(el.getAttribute('width') || '0');
+    let height = parseFloat(el.getAttribute('height') || '0');
+
+    // If no width/height attributes, try bounding box
+    if (!width || !height || isNaN(width) || isNaN(height)) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        width = rect.width;
+        height = rect.height;
+      }
+    }
+
+    // If still no dimensions, try viewBox
+    if ((!width || !height || isNaN(width) || isNaN(height))) {
+      const viewBox = el.getAttribute('viewBox');
+      if (viewBox) {
+        const parts = viewBox.split(/\s+/);
+        if (parts.length === 4) {
+          width = parseFloat(parts[2]) || width;
+          height = parseFloat(parts[3]) || height;
+        }
+      }
+    }
+
+    // Skip if we still don't have valid dimensions
+    if (!width || !height || isNaN(width) || isNaN(height) || width === 0 || height === 0) {
+      return; // Skip this SVG
+    }
+
+    const viewBox = el.getAttribute('viewBox');
+    const className = el.className.baseVal || '';
+
+    const size = `${Math.round(width)}x${Math.round(height)}`;
+    const sizeCount = icons.sizes.get(size) || 0;
+    icons.sizes.set(size, sizeCount + 1);
+
+    const signature = `${size}-${viewBox}`;
+    if (svgPatterns.has(signature)) {
+      svgPatterns.get(signature).count++;
+    } else {
+      svgPatterns.set(signature, {
+        size,
+        viewBox,
+        className,
+        count: 1
+      });
+    }
+  });
+
+  icons.svgIcons = Array.from(svgPatterns.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  // Extract icon font usage (Font Awesome, Material Icons, etc.)
+  const iconFontSelectors = '[class*="icon-"], [class*="fa-"], [class*="material-icons"], i[class*="icon"]';
+  const iconFontElements = document.querySelectorAll(iconFontSelectors);
+  const iconFontPatterns = new Map<string, number>();
+
+  iconFontElements.forEach(icon => {
+    const styles = getComputedStyle(icon);
+    const fontSize = styles.fontSize;
+    const count = iconFontPatterns.get(fontSize) || 0;
+    iconFontPatterns.set(fontSize, count + 1);
+  });
+
+  icons.iconFonts = (Array.from(iconFontPatterns.entries()) as [string, number][])
+    .map(([size, count]) => ({ size, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  // Convert sizes map to array
+  const commonSizes = (Array.from(icons.sizes.entries()) as [string, number][])
+    .map(([size, count]) => ({ size, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  return {
+    svgPatterns: icons.svgIcons,
+    iconFonts: icons.iconFonts,
+    commonSizes,
+    totalSvgs: svgs.length,
+    totalIconFonts: iconFontElements.length
+  };
+}
+
+/**
+ * Extracts responsive breakpoints from media queries
+ */
+function extractResponsiveBreakpoints(): any {
+  const breakpoints = new Map<number, any>();
+  const mediaQueries: any[] = [];
+
+  try {
+    const sheets = Array.from(document.styleSheets);
+
+    sheets.forEach(sheet => {
+      try {
+        const rules = Array.from(sheet.cssRules || sheet.rules || []);
+
+        rules.forEach(rule => {
+          if (rule instanceof CSSMediaRule) {
+            const mediaText = rule.media.mediaText;
+            mediaQueries.push(mediaText);
+
+            // Extract min-width and max-width values
+            const minWidthMatch = mediaText.match(/min-width:\s*(\d+)px/);
+            const maxWidthMatch = mediaText.match(/max-width:\s*(\d+)px/);
+
+            if (minWidthMatch) {
+              const width = parseInt(minWidthMatch[1], 10);
+              if (!breakpoints.has(width)) {
+                breakpoints.set(width, {
+                  value: `${width}px`,
+                  type: 'min-width',
+                  queries: []
+                });
+              }
+              breakpoints.get(width)!.queries.push(mediaText);
+            }
+
+            if (maxWidthMatch) {
+              const width = parseInt(maxWidthMatch[1], 10);
+              if (!breakpoints.has(width)) {
+                breakpoints.set(width, {
+                  value: `${width}px`,
+                  type: 'max-width',
+                  queries: []
+                });
+              }
+              breakpoints.get(width)!.queries.push(mediaText);
+            }
+          }
+        });
+      } catch (e) {
+        // Cross-origin stylesheet, skip
+      }
+    });
+  } catch (e) {
+    // Error accessing stylesheets
+  }
+
+  // Sort breakpoints and deduplicate queries
+  const sortedBreakpoints = Array.from(breakpoints.entries())
+    .map(([width, data]) => ({
+      width,
+      value: data.value,
+      type: data.type,
+      queryCount: data.queries.length
+    }))
+    .sort((a, b) => a.width - b.width);
+
+  // Infer common breakpoint names
+  const namedBreakpoints = sortedBreakpoints.map(bp => {
+    let name = 'custom';
+
+    // Common breakpoint standards
+    if (bp.width === 640) name = 'sm (Tailwind)';
+    else if (bp.width === 768) name = 'md (Tailwind/Bootstrap)';
+    else if (bp.width === 1024) name = 'lg (Tailwind)';
+    else if (bp.width === 1280) name = 'xl (Tailwind)';
+    else if (bp.width === 1536) name = '2xl (Tailwind)';
+    else if (bp.width === 576) name = 'sm (Bootstrap)';
+    else if (bp.width === 992) name = 'lg (Bootstrap)';
+    else if (bp.width === 1200) name = 'xl (Bootstrap)';
+    else if (bp.width === 1400) name = 'xxl (Bootstrap)';
+
+    return { ...bp, name };
+  });
+
+  return {
+    breakpoints: namedBreakpoints,
+    totalMediaQueries: mediaQueries.length,
+    uniqueBreakpoints: namedBreakpoints.length
+  };
+}
+
+/**
+ * Extracts custom scrollbar styles
+ */
+function extractScrollbarStyles(): any[] {
+  const scrollbars: any[] = [];
+
+  try {
+    const sheets = Array.from(document.styleSheets);
+
+    sheets.forEach(sheet => {
+      try {
+        const rules = Array.from(sheet.cssRules || sheet.rules || []);
+
+        rules.forEach(rule => {
+          if (rule instanceof CSSStyleRule) {
+            const selector = rule.selectorText;
+
+            // Check for webkit scrollbar selectors
+            if (selector && (
+              selector.includes('::-webkit-scrollbar') ||
+              selector.includes('scrollbar-width') ||
+              selector.includes('scrollbar-color')
+            )) {
+              const style = rule.style;
+              const scrollbarData: any = {
+                selector,
+                styles: {}
+              };
+
+              // Webkit scrollbar properties
+              if (style.width) scrollbarData.styles.width = style.width;
+              if (style.height) scrollbarData.styles.height = style.height;
+              if (style.backgroundColor) scrollbarData.styles.backgroundColor = style.backgroundColor;
+              if (style.borderRadius) scrollbarData.styles.borderRadius = style.borderRadius;
+
+              // Firefox scrollbar properties
+              if (style.scrollbarWidth) scrollbarData.styles.scrollbarWidth = style.scrollbarWidth;
+              if (style.scrollbarColor) scrollbarData.styles.scrollbarColor = style.scrollbarColor;
+
+              if (Object.keys(scrollbarData.styles).length > 0) {
+                scrollbars.push(scrollbarData);
+              }
+            }
+          }
+        });
+      } catch (e) {
+        // Cross-origin stylesheet, skip
+      }
+    });
+  } catch (e) {
+    // Error accessing stylesheets
+  }
+
+  return scrollbars.slice(0, 5);
+}
+
+/**
+ * Extracts skeleton/loading state components
+ */
+function extractSkeletonStates(): any[] {
+  const skeletons: any[] = [];
+  const seen = new Map<string, any>();
+
+  const skeletonSelectors = '[class*="skeleton"], [class*="shimmer"], [class*="placeholder"], [class*="loading"][class*="state"]';
+  const elements = document.querySelectorAll(skeletonSelectors);
+
+  elements.forEach(skeleton => {
+    const styles = getComputedStyle(skeleton);
+    const el = skeleton as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        backgroundImage: styles.backgroundImage,
+        height: styles.height,
+        width: styles.width,
+        borderRadius: styles.borderRadius,
+        animation: styles.animation
+      };
+
+      // Check if it has shimmer/pulse animation
+      const hasAnimation = styles.animation !== 'none' ||
+                          styles.backgroundImage.includes('gradient');
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: hasAnimation ? 'animated' : 'static',
+        count: 1
+      };
+
+      skeletons.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return skeletons.sort((a, b) => b.count - a.count).slice(0, 5);
+}
+
+/**
+ * Extracts empty state components
+ */
+function extractEmptyStates(): any[] {
+  const emptyStates: any[] = [];
+  const seen = new Map<string, any>();
+
+  const emptySelectors = '[class*="empty"], [class*="no-data"], [class*="no-results"], [class*="blank-slate"]';
+  const elements = document.querySelectorAll(emptySelectors);
+
+  elements.forEach(empty => {
+    const styles = getComputedStyle(empty);
+    const el = empty as HTMLElement;
+
+    // Should have some content (text or image)
+    const hasContent = el.textContent?.trim().length || el.querySelector('img, svg');
+    if (!hasContent) return;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        textAlign: styles.textAlign,
+        padding: styles.padding,
+        color: styles.color,
+        fontSize: styles.fontSize
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'empty-state',
+        count: 1
+      };
+
+      emptyStates.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return emptyStates.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts date picker components
+ */
+function extractDatePickers(): any[] {
+  const datePickers: any[] = [];
+  const seen = new Map<string, any>();
+
+  const dateSelectors = 'input[type="date"], input[type="datetime-local"], [class*="date-picker"], [class*="calendar"], [role="dialog"][aria-label*="date"]';
+  const elements = document.querySelectorAll(dateSelectors);
+
+  elements.forEach(picker => {
+    const styles = getComputedStyle(picker);
+    const el = picker as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding,
+        fontSize: styles.fontSize,
+        height: styles.height
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'date-picker',
+        count: 1
+      };
+
+      datePickers.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return datePickers.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts color picker components
+ */
+function extractColorPickers(): any[] {
+  const colorPickers: any[] = [];
+  const seen = new Map<string, any>();
+
+  const colorSelectors = 'input[type="color"], [class*="color-picker"], [class*="colour-picker"]';
+  const elements = document.querySelectorAll(colorSelectors);
+
+  elements.forEach(picker => {
+    const styles = getComputedStyle(picker);
+    const el = picker as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        width: styles.width,
+        height: styles.height,
+        border: styles.border,
+        borderRadius: styles.borderRadius
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'color-picker',
+        count: 1
+      };
+
+      colorPickers.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return colorPickers.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts rich text editor components
+ */
+function extractRichTextEditors(): any[] {
+  const editors: any[] = [];
+  const seen = new Map<string, any>();
+
+  const editorSelectors = '[contenteditable="true"], [class*="editor"], [class*="rich-text"], [role="textbox"][aria-multiline="true"]';
+  const elements = document.querySelectorAll(editorSelectors);
+
+  elements.forEach(editor => {
+    const styles = getComputedStyle(editor);
+    const el = editor as HTMLElement;
+
+    // Should be reasonably sized
+    const rect = el.getBoundingClientRect();
+    if (rect.height < 50) return;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding,
+        fontSize: styles.fontSize,
+        lineHeight: styles.lineHeight,
+        minHeight: styles.minHeight
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'rich-text-editor',
+        count: 1
+      };
+
+      editors.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return editors.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts slider/range input components
+ */
+function extractSliders(): any[] {
+  const sliders: any[] = [];
+  const seen = new Map<string, any>();
+
+  const sliderSelectors = 'input[type="range"], [role="slider"], [class*="slider"]';
+  const elements = document.querySelectorAll(sliderSelectors);
+
+  elements.forEach(slider => {
+    const styles = getComputedStyle(slider);
+    const el = slider as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        width: styles.width,
+        height: styles.height,
+        background: styles.backgroundColor
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'slider',
+        count: 1
+      };
+
+      sliders.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return sliders.sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+/**
+ * Extracts advanced select/combobox components
+ */
+function extractComboboxes(): any[] {
+  const comboboxes: any[] = [];
+  const seen = new Map<string, any>();
+
+  const comboSelectors = '[role="combobox"], [class*="combobox"], [class*="autocomplete"], [class*="typeahead"]';
+  const elements = document.querySelectorAll(comboSelectors);
+
+  elements.forEach(combo => {
+    const styles = getComputedStyle(combo);
+    const el = combo as HTMLElement;
+
+    const signature = createStyleSignature(el);
+
+    if (seen.has(signature)) {
+      const existing = seen.get(signature)!;
+      existing.count++;
+    } else {
+      const componentStyles: any = {
+        background: styles.backgroundColor,
+        border: styles.border,
+        borderRadius: styles.borderRadius,
+        padding: styles.padding,
+        fontSize: styles.fontSize,
+        height: styles.height
+      };
+
+      const variant: any = {
+        html: getCleanHTML(el),
+        classes: el.className || '',
+        styles: componentStyles,
+        variant: 'combobox',
+        count: 1,
+        states: extractStateStyles(el)
+      };
+
+      comboboxes.push(variant);
+      seen.set(signature, variant);
+    }
+  });
+
+  return comboboxes.sort((a, b) => b.count - a.count).slice(0, 3);
 }
 
 /**
@@ -1210,12 +3494,45 @@ function inferSizeVariant(_button: HTMLElement, styles: CSSStyleDeclaration): st
 }
 
 /**
- * Extracts typography context with semantic usage
+ * Enhanced typography analysis result
  */
-function extractTypographyContext(): any {
+interface TypographyAnalysis {
+  headings: { [tag: string]: any };
+  body: any[];
+  typeScale: TypeScaleAnalysis;
+  lineHeightPatterns: LineHeightPattern[];
+}
+
+/**
+ * Type scale analysis
+ */
+interface TypeScaleAnalysis {
+  baseSize: number;
+  ratio: number;
+  ratioName: string;
+  scale: number[];
+  confidence: string;
+}
+
+/**
+ * Line height pattern
+ */
+interface LineHeightPattern {
+  value: string;
+  ratio: number;
+  count: number;
+  usage: string;
+}
+
+/**
+ * Extracts comprehensive typography context with semantic usage
+ */
+function extractTypographyContext(): TypographyAnalysis {
   const headings: { [tag: string]: any } = {};
   const bodyMap = new Map<string, any>();
   const inferredHeadingsMap = new Map<string, any>();
+  const allFontSizes: number[] = [];
+  const lineHeightMap = new Map<string, { count: number; fontSize: number[] }>();
 
   // Extract semantic heading styles (h1-h6 tags)
   ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].forEach(tag => {
@@ -1226,6 +3543,9 @@ function extractTypographyContext(): any {
     const styles = getComputedStyle(firstElement);
     const actualFontSize = parseFloat(styles.fontSize);
 
+    allFontSizes.push(actualFontSize);
+    trackLineHeight(styles.lineHeight, actualFontSize, lineHeightMap);
+
     headings[tag] = {
       fontSize: `${actualFontSize}px`,
       fontWeight: styles.fontWeight,
@@ -1235,24 +3555,25 @@ function extractTypographyContext(): any {
       examples: Array.from(elements).slice(0, 2).map(el =>
         el.textContent?.substring(0, 50) || ''
       ),
-      tag
+      tag,
+      count: elements.length
     };
   });
 
   // Extract text styles from actual content-bearing elements
-  // Use more specific selectors and filter out containers
-  const bodySelectors = 'p, span:not([class*="icon"]), div, a, button, label, li';
+  // Scan more elements for comprehensive analysis
+  const bodySelectors = 'p, span:not([class*="icon"]), div, a, button, label, li, td, th, figcaption, small, strong, em';
   const bodyElements = document.querySelectorAll(bodySelectors);
-  const maxBodyElements = Math.min(bodyElements.length, 200); // Increased to get better coverage
+  const maxBodyElements = Math.min(bodyElements.length, 500); // Increased for better coverage
 
   for (let i = 0; i < maxBodyElements; i++) {
     const element = bodyElements[i] as HTMLElement;
     const text = element.textContent?.trim() || '';
 
     // Skip if no meaningful text
-    if (text.length < 3 || text.length > 200) continue;
+    if (text.length < 2 || text.length > 300) continue;
 
-    // Filter out container elements more aggressively
+    // Filter out container elements
     const directText = Array.from(element.childNodes)
       .filter(node => node.nodeType === Node.TEXT_NODE)
       .map(node => node.textContent?.trim() || '')
@@ -1260,29 +3581,25 @@ function extractTypographyContext(): any {
       .trim();
 
     // Skip if it's mainly a container
-    if (element.children.length > 1 && directText.length < 15) continue;
+    if (element.children.length > 2 && directText.length < 10) continue;
 
-    // Skip if it contains structural elements (containers with nested divs/sections)
-    const hasStructuralChildren = element.querySelector('div, section, article') !== null;
+    // Skip if it contains structural elements
+    const hasStructuralChildren = element.querySelector('div, section, article, aside, main') !== null;
     if (hasStructuralChildren && element.children.length > 0) continue;
-
-    // Skip button and link elements - they're extracted separately in component patterns
-    const tagName = element.tagName.toLowerCase();
-    if (tagName === 'button' || (tagName === 'a' && element.getAttribute('role') === 'button')) continue;
 
     const styles = getComputedStyle(element);
     const actualFontSize = parseFloat(styles.fontSize);
     const weight = parseInt(styles.fontWeight);
 
+    // Track all font sizes for scale detection
+    allFontSizes.push(actualFontSize);
+    trackLineHeight(styles.lineHeight, actualFontSize, lineHeightMap);
+
     // Use actual font size in signature
     const signature = `${actualFontSize}px-${weight}-${styles.lineHeight}`;
 
-    // Detect if this should be a heading based on size and weight
-    // Be conservative: only large + bold text, or very large text
-    // Don't classify navigation text as headings - it's body text
-    const isLargeAndBold = actualFontSize >= 16 && weight >= 600;
-    const isVeryLarge = actualFontSize >= 20;
-    const isHeading = isLargeAndBold || isVeryLarge || (actualFontSize >= 18 && weight >= 700);
+    // Enhanced heading detection with better heuristics
+    const isHeading = detectIfHeading(element, actualFontSize, weight, text);
 
     if (isHeading) {
       // This looks like a heading - add to inferred headings
@@ -1299,23 +3616,16 @@ function extractTypographyContext(): any {
           color: styles.color,
           usage: `${headingLevel} headings (inferred from ${actualFontSize}px text)`,
           examples: [cleanText + (text.length > 50 ? '...' : '')],
-          tag: headingLevel
+          tag: headingLevel,
+          count: 1
         });
+      } else {
+        inferredHeadingsMap.get(headingKey)!.count++;
       }
     } else {
-      // This is body text
+      // This is body text - classify with enhanced categories
       if (!bodyMap.has(signature)) {
-        // Infer semantic usage from tag and context
-        let usage = 'Body text';
-        const tagName = element.tagName.toLowerCase();
-
-        if (tagName === 'p') usage = 'Paragraph text';
-        else if (tagName === 'a' && element.closest('nav')) usage = 'Navigation links';
-        else if (tagName === 'a') usage = 'Link text';
-        else if (tagName === 'button') usage = 'Button text';
-        else if (tagName === 'label') usage = 'Label text';
-        else if (element.classList.toString().includes('caption')) usage = 'Caption text';
-
+        const usage = classifyBodyText(element, actualFontSize, weight);
         const cleanText = text.replace(/\s+/g, ' ').substring(0, 60);
 
         bodyMap.set(signature, {
@@ -1325,7 +3635,7 @@ function extractTypographyContext(): any {
           color: styles.color,
           usage,
           examples: [cleanText + (text.length > 60 ? '...' : '')],
-          tag: tagName,
+          tag: element.tagName.toLowerCase(),
           count: 1
         });
       } else {
@@ -1344,12 +3654,235 @@ function extractTypographyContext(): any {
   // Sort body text by count (most common first)
   const sortedBody = Array.from(bodyMap.values())
     .sort((a, b) => b.count - a.count)
-    .slice(0, 5); // Show top 5 instead of 3
+    .slice(0, 8); // Show top 8 for better coverage
+
+  // Analyze type scale
+  const typeScale = analyzeTypeScale(allFontSizes);
+
+  // Analyze line-height patterns
+  const lineHeightPatterns = analyzeLineHeightPatterns(lineHeightMap);
 
   return {
     headings,
-    body: sortedBody
+    body: sortedBody,
+    typeScale,
+    lineHeightPatterns
   };
+}
+
+/**
+ * Enhanced heading detection with multiple heuristics
+ */
+function detectIfHeading(element: HTMLElement, fontSize: number, weight: number, text: string): boolean {
+  const tagName = element.tagName.toLowerCase();
+
+  // Don't classify buttons, links in nav, or form elements as headings
+  if (tagName === 'button') return false;
+  if (tagName === 'a' && element.closest('nav, header')) return false;
+  if (tagName === 'label') return false;
+
+  // Check visual hierarchy
+  const isLargeAndBold = fontSize >= 18 && weight >= 600;
+  const isVeryLarge = fontSize >= 24;
+  const isExtraLarge = fontSize >= 32;
+
+  // Check text characteristics
+  const isShortText = text.length < 80; // Headings are typically short
+  const isCapitalized = text.length > 0 && text[0] === text[0].toUpperCase();
+
+  // Check semantic markers
+  const hasHeadingClass = element.className.toLowerCase().match(/title|heading|headline|display/);
+
+  // Combine heuristics
+  if (isExtraLarge) return true; // Very large text is almost always a heading
+  if (isVeryLarge && isShortText) return true;
+  if (isLargeAndBold && isShortText && isCapitalized) return true;
+  if (hasHeadingClass && fontSize >= 16) return true;
+
+  return false;
+}
+
+/**
+ * Enhanced body text classification
+ */
+function classifyBodyText(element: HTMLElement, fontSize: number, weight: number): string {
+  const tagName = element.tagName.toLowerCase();
+  const className = element.className.toLowerCase();
+
+  // UI Text (buttons, menus, nav)
+  if (tagName === 'button' || element.getAttribute('role') === 'button') {
+    return 'UI: Button text';
+  }
+  if (tagName === 'a' && element.closest('nav, header')) {
+    return 'UI: Navigation';
+  }
+  if (className.includes('menu') || className.includes('dropdown')) {
+    return 'UI: Menu items';
+  }
+
+  // Caption/Meta text (small text, usually under 13px)
+  if (fontSize < 13 || tagName === 'small' || className.includes('caption')) {
+    return 'Caption/Meta text';
+  }
+  if (tagName === 'figcaption') {
+    return 'Caption: Figure caption';
+  }
+  if (className.includes('meta') || className.includes('timestamp')) {
+    return 'Caption: Metadata';
+  }
+
+  // Label text
+  if (tagName === 'label' || className.includes('label')) {
+    return 'Label: Form label';
+  }
+  if (tagName === 'th') {
+    return 'Label: Table header';
+  }
+
+  // Content text (paragraphs, articles)
+  if (tagName === 'p') {
+    return 'Content: Paragraph';
+  }
+  if (tagName === 'td' || tagName === 'li') {
+    return 'Content: Body text';
+  }
+  if (element.closest('article, main, section')) {
+    return 'Content: Article text';
+  }
+
+  // Link text
+  if (tagName === 'a') {
+    return 'Link text';
+  }
+
+  // Emphasis
+  if (tagName === 'strong' || weight >= 600) {
+    return 'Content: Emphasized text';
+  }
+
+  return 'Body text';
+}
+
+/**
+ * Tracks line-height values for pattern analysis
+ */
+function trackLineHeight(lineHeight: string, fontSize: number, lineHeightMap: Map<string, { count: number; fontSize: number[] }>): void {
+  if (!lineHeight || lineHeight === 'normal') return;
+
+  if (!lineHeightMap.has(lineHeight)) {
+    lineHeightMap.set(lineHeight, { count: 0, fontSize: [] });
+  }
+
+  const entry = lineHeightMap.get(lineHeight)!;
+  entry.count++;
+  entry.fontSize.push(fontSize);
+}
+
+/**
+ * Analyzes font sizes to detect type scale ratio
+ */
+function analyzeTypeScale(fontSizes: number[]): TypeScaleAnalysis {
+  if (fontSizes.length < 3) {
+    return {
+      baseSize: 16,
+      ratio: 1,
+      ratioName: 'Insufficient data',
+      scale: [],
+      confidence: 'low'
+    };
+  }
+
+  // Get unique font sizes, sorted
+  const uniqueSizes = Array.from(new Set(fontSizes)).sort((a, b) => a - b);
+
+  // Detect base size (most common small-to-medium size)
+  const baseCandidates = fontSizes.filter(s => s >= 12 && s <= 18);
+  const baseSize = baseCandidates.length > 0
+    ? Math.round(baseCandidates.reduce((a, b) => a + b) / baseCandidates.length)
+    : 16;
+
+  // Calculate ratios between consecutive sizes
+  const ratios: number[] = [];
+  for (let i = 1; i < uniqueSizes.length && i < 6; i++) {
+    const ratio = uniqueSizes[i] / uniqueSizes[i - 1];
+    if (ratio >= 1.1 && ratio <= 2.0) {
+      ratios.push(ratio);
+    }
+  }
+
+  // If we have ratios, calculate average
+  const avgRatio = ratios.length > 0
+    ? ratios.reduce((a, b) => a + b) / ratios.length
+    : 1;
+
+  // Identify common type scale ratios
+  const commonRatios = [
+    { value: 1.125, name: 'Major Second (1.125)' },
+    { value: 1.2, name: 'Minor Third (1.2)' },
+    { value: 1.25, name: 'Major Third (1.25)' },
+    { value: 1.333, name: 'Perfect Fourth (1.333)' },
+    { value: 1.414, name: 'Augmented Fourth (1.414)' },
+    { value: 1.5, name: 'Perfect Fifth (1.5)' },
+    { value: 1.618, name: 'Golden Ratio (1.618)' },
+    { value: 2, name: 'Octave (2.0)' }
+  ];
+
+  // Find closest match
+  let closestRatio = commonRatios[0];
+  let minDiff = Math.abs(avgRatio - closestRatio.value);
+
+  for (const ratio of commonRatios) {
+    const diff = Math.abs(avgRatio - ratio.value);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestRatio = ratio;
+    }
+  }
+
+  // Determine confidence
+  let confidence = 'low';
+  if (minDiff < 0.05 && ratios.length >= 3) confidence = 'high';
+  else if (minDiff < 0.1 && ratios.length >= 2) confidence = 'medium';
+
+  return {
+    baseSize,
+    ratio: closestRatio.value,
+    ratioName: closestRatio.name,
+    scale: uniqueSizes.slice(0, 8),
+    confidence
+  };
+}
+
+/**
+ * Analyzes line-height patterns
+ */
+function analyzeLineHeightPatterns(lineHeightMap: Map<string, { count: number; fontSize: number[] }>): LineHeightPattern[] {
+  const patterns: LineHeightPattern[] = [];
+
+  for (const [value, data] of lineHeightMap.entries()) {
+    // Calculate average ratio (line-height / font-size)
+    const avgFontSize = data.fontSize.reduce((a, b) => a + b, 0) / data.fontSize.length;
+    const lineHeightPx = parseFloat(value);
+    const ratio = lineHeightPx / avgFontSize;
+
+    // Determine usage category
+    let usage = 'Body text';
+    if (ratio <= 1.2) usage = 'Tight (headings)';
+    else if (ratio >= 1.6) usage = 'Loose (content)';
+    else if (ratio >= 1.4 && ratio < 1.6) usage = 'Normal (body)';
+
+    patterns.push({
+      value,
+      ratio: Math.round(ratio * 100) / 100,
+      count: data.count,
+      usage
+    });
+  }
+
+  // Sort by count (most common first)
+  patterns.sort((a, b) => b.count - a.count);
+
+  return patterns.slice(0, 5);
 }
 
 /**

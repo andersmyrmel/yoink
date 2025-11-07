@@ -152,6 +152,45 @@ main {
   margin-top: var(--spacing-md);
 }
 
+/* Export format selector */
+.export-format-section {
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: #f9fafb;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+}
+
+.export-format-section label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: var(--spacing-sm);
+}
+
+.format-selector {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: white;
+  border: 2px solid var(--border-color);
+  border-radius: var(--border-radius);
+  font-size: 14px;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.format-selector:hover {
+  border-color: var(--primary-color);
+}
+
+.format-selector:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
 .preview-container {
   margin-bottom: var(--spacing-md);
 }
