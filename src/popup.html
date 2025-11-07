@@ -37,6 +37,17 @@
 
     <!-- Results section (hidden until scan completes) -->
     <div id="resultsSection" class="results hidden">
+      <!-- Screenshot option -->
+      <div class="screenshot-option">
+        <label class="checkbox-label">
+          <input type="checkbox" id="includeScreenshotCheckbox">
+          <span>Include screenshot (better AI replication, larger file)</span>
+        </label>
+        <div id="screenshotSizeEstimate" class="size-estimate hidden">
+          ~300-500KB with screenshot vs ~10KB without
+        </div>
+      </div>
+
       <!-- Action buttons for copy and download -->
       <div class="action-buttons">
         <button id="copyBtn" class="action-btn copy-btn">

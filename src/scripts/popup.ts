@@ -8,6 +8,8 @@ const scanButton = document.getElementById('scanBtn') as HTMLButtonElement;
 const copyButton = document.getElementById('copyBtn') as HTMLButtonElement;
 const downloadButton = document.getElementById('downloadBtn') as HTMLButtonElement;
 const includeComponentsCheckbox = document.getElementById('includeComponentsCheckbox') as HTMLInputElement;
+const includeScreenshotCheckbox = document.getElementById('includeScreenshotCheckbox') as HTMLInputElement;
+const screenshotSizeEstimate = document.getElementById('screenshotSizeEstimate') as HTMLDivElement;
 const loadingState = document.getElementById('loadingState') as HTMLDivElement;
 const resultsSection = document.getElementById('resultsSection') as HTMLDivElement;
 const errorState = document.getElementById('errorState') as HTMLDivElement;
@@ -15,10 +17,23 @@ const markdownPreview = document.getElementById('markdownPreview') as HTMLDivEle
 const successMessage = document.getElementById('successMessage') as HTMLDivElement;
 
 let currentYAML = '';
+let screenshotData: { base64: string; format: string; viewport: string } | null = null;
+
+// Screenshot checkbox change handler
+includeScreenshotCheckbox.addEventListener('change', () => {
+  if (includeScreenshotCheckbox.checked) {
+    screenshotSizeEstimate.classList.remove('hidden');
+  } else {
+    screenshotSizeEstimate.classList.add('hidden');
+  }
+});
 
 // Scan button click handler
 scanButton.addEventListener('click', async () => {
   showLoading();
+
+  // Clear previous screenshot data
+  screenshotData = null;
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -56,23 +71,150 @@ scanButton.addEventListener('click', async () => {
 });
 
 // Copy button click handler
-copyButton.addEventListener('click', () => {
-  navigator.clipboard.writeText(currentYAML).then(() => {
+copyButton.addEventListener('click', async () => {
+  try {
+    if (includeScreenshotCheckbox.checked) {
+      showSuccess('Capturing screenshot...');
+      await captureScreenshot();
+    }
+
+    const yamlWithScreenshot = screenshotData
+      ? generateYAMLWithScreenshot(currentYAML, screenshotData)
+      : currentYAML;
+
+    await navigator.clipboard.writeText(yamlWithScreenshot);
     showSuccess('Copied to clipboard!');
-  });
+  } catch (error) {
+    console.error('Copy failed:', error);
+    showSuccess('Copy failed - see console');
+  }
 });
 
 // Download button click handler
-downloadButton.addEventListener('click', () => {
-  const blob = new Blob([currentYAML], { type: 'text/yaml' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'design-system.yaml';
-  a.click();
-  URL.revokeObjectURL(url);
-  showSuccess('Downloaded!');
+downloadButton.addEventListener('click', async () => {
+  try {
+    if (includeScreenshotCheckbox.checked) {
+      showSuccess('Capturing screenshot...');
+      await captureScreenshot();
+    }
+
+    const yamlWithScreenshot = screenshotData
+      ? generateYAMLWithScreenshot(currentYAML, screenshotData)
+      : currentYAML;
+
+    const blob = new Blob([yamlWithScreenshot], { type: 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'design-system.yaml';
+    a.click();
+    URL.revokeObjectURL(url);
+    showSuccess('Downloaded!');
+  } catch (error) {
+    console.error('Download failed:', error);
+    showSuccess('Download failed - see console');
+  }
 });
+
+/**
+ * Captures screenshot of the visible tab
+ */
+async function captureScreenshot(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs[0]?.id) {
+        reject(new Error('No active tab found'));
+        return;
+      }
+
+      chrome.tabs.captureVisibleTab(null as any, { format: 'png' }, (dataUrl) => {
+        if (chrome.runtime.lastError) {
+          console.error('Screenshot capture error:', chrome.runtime.lastError);
+          screenshotData = null;
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+
+        if (!dataUrl) {
+          screenshotData = null;
+          reject(new Error('No screenshot data received'));
+          return;
+        }
+
+        // Strip the data:image/png;base64, prefix
+        const base64 = dataUrl.split(',')[1];
+
+        // Get viewport dimensions
+        const viewport = `${window.screen.width}x${window.screen.height}`;
+
+        screenshotData = {
+          base64,
+          format: 'image/png',
+          viewport
+        };
+
+        resolve();
+      });
+    });
+  });
+}
+
+/**
+ * Generates YAML with screenshot metadata embedded
+ */
+function generateYAMLWithScreenshot(
+  baseYAML: string,
+  screenshot: { base64: string; format: string; viewport: string }
+): string {
+  // Find the metadata section and insert screenshot data
+  const lines = baseYAML.split('\n');
+  let metadataEndIndex = -1;
+
+  // Find where metadata section ends (look for next top-level section)
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith('metadata:')) {
+      // Found metadata start, now find where it ends
+      for (let j = i + 1; j < lines.length; j++) {
+        // Next section starts (no indentation, ends with colon)
+        if (lines[j] && !lines[j].startsWith(' ') && !lines[j].startsWith('\t') && lines[j].includes(':')) {
+          metadataEndIndex = j;
+          break;
+        }
+      }
+      break;
+    }
+  }
+
+  if (metadataEndIndex === -1) {
+    // Metadata section not found or is last section
+    // Just append at the end of metadata
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith('metadata:')) {
+        // Find the last non-empty line in metadata
+        for (let j = i + 1; j < lines.length; j++) {
+          if (lines[j] && !lines[j].startsWith(' ') && !lines[j].startsWith('\t') && lines[j].trim() !== '') {
+            metadataEndIndex = j;
+            break;
+          }
+        }
+        if (metadataEndIndex === -1) {
+          metadataEndIndex = lines.length;
+        }
+        break;
+      }
+    }
+  }
+
+  // Insert screenshot metadata before the next section
+  const screenshotLines = [
+    `  screenshot: "${screenshot.base64}"`,
+    `  screenshot-format: "${screenshot.format}"`,
+    `  screenshot-viewport: "${screenshot.viewport}"`
+  ];
+
+  lines.splice(metadataEndIndex, 0, ...screenshotLines);
+  return lines.join('\n');
+}
 
 /**
  * Shows loading state
