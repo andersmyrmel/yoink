@@ -8,8 +8,6 @@ const scanButton = document.getElementById('scanBtn') as HTMLButtonElement;
 const copyButton = document.getElementById('copyBtn') as HTMLButtonElement;
 const downloadButton = document.getElementById('downloadBtn') as HTMLButtonElement;
 const includeComponentsCheckbox = document.getElementById('includeComponentsCheckbox') as HTMLInputElement;
-const includeScreenshotCheckbox = document.getElementById('includeScreenshotCheckbox') as HTMLInputElement;
-const screenshotSizeEstimate = document.getElementById('screenshotSizeEstimate') as HTMLDivElement;
 const loadingState = document.getElementById('loadingState') as HTMLDivElement;
 const resultsSection = document.getElementById('resultsSection') as HTMLDivElement;
 const errorState = document.getElementById('errorState') as HTMLDivElement;
@@ -18,15 +16,6 @@ const successMessage = document.getElementById('successMessage') as HTMLDivEleme
 
 let currentYAML = '';
 let screenshotData: { base64: string; format: string; viewport: string } | null = null;
-
-// Screenshot checkbox change handler
-includeScreenshotCheckbox.addEventListener('change', () => {
-  if (includeScreenshotCheckbox.checked) {
-    screenshotSizeEstimate.classList.remove('hidden');
-  } else {
-    screenshotSizeEstimate.classList.add('hidden');
-  }
-});
 
 // Scan button click handler
 scanButton.addEventListener('click', async () => {
@@ -70,33 +59,31 @@ scanButton.addEventListener('click', async () => {
   }
 });
 
-// Copy button click handler
+// Copy button click handler - always captures screenshot
 copyButton.addEventListener('click', async () => {
   try {
-    if (includeScreenshotCheckbox.checked) {
-      showSuccess('Capturing screenshot...');
-      await captureScreenshot();
-    }
+    showSuccess('Capturing screenshot...');
+    await captureScreenshot();
 
     const yamlWithScreenshot = screenshotData
       ? generateYAMLWithScreenshot(currentYAML, screenshotData)
       : currentYAML;
 
     await navigator.clipboard.writeText(yamlWithScreenshot);
-    showSuccess('Copied to clipboard!');
+    showSuccess('Copied to clipboard with screenshot!');
   } catch (error) {
     console.error('Copy failed:', error);
-    showSuccess('Copy failed - see console');
+    // Fallback: copy without screenshot
+    await navigator.clipboard.writeText(currentYAML);
+    showSuccess('Copied (screenshot failed)');
   }
 });
 
-// Download button click handler
+// Download button click handler - always captures screenshot
 downloadButton.addEventListener('click', async () => {
   try {
-    if (includeScreenshotCheckbox.checked) {
-      showSuccess('Capturing screenshot...');
-      await captureScreenshot();
-    }
+    showSuccess('Capturing screenshot...');
+    await captureScreenshot();
 
     const yamlWithScreenshot = screenshotData
       ? generateYAMLWithScreenshot(currentYAML, screenshotData)
@@ -109,10 +96,18 @@ downloadButton.addEventListener('click', async () => {
     a.download = 'design-system.yaml';
     a.click();
     URL.revokeObjectURL(url);
-    showSuccess('Downloaded!');
+    showSuccess('Downloaded with screenshot!');
   } catch (error) {
     console.error('Download failed:', error);
-    showSuccess('Download failed - see console');
+    // Fallback: download without screenshot
+    const blob = new Blob([currentYAML], { type: 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'design-system.yaml';
+    a.click();
+    URL.revokeObjectURL(url);
+    showSuccess('Downloaded (screenshot failed)');
   }
 });
 

@@ -152,23 +152,6 @@ main {
   margin-top: var(--spacing-md);
 }
 
-/* Screenshot option */
-.screenshot-option {
-  margin-bottom: var(--spacing-md);
-  padding: var(--spacing-md);
-  background-color: #f9fafb;
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
-}
-
-.size-estimate {
-  margin-top: var(--spacing-sm);
-  margin-left: 26px; /* Align with checkbox label text */
-  font-size: 12px;
-  color: var(--text-light);
-  font-style: italic;
-}
-
 /* Export format selector */
 .export-format-section {
   margin-bottom: var(--spacing-md);
