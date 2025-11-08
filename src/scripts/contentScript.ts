@@ -47,7 +47,7 @@ import {
 } from './extraction/layoutExtractor';
 
 // Component detection imports
-import { extractComponents } from './extraction/componentDetector';
+import { extractComponents } from './extraction/components';
 
 // Animation extraction imports
 import { extractAnimations } from './extraction/animationExtractor';
