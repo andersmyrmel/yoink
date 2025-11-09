@@ -19,264 +19,13 @@ import type {
   ColorPairing,
   Container
 } from '../types/extraction';
+import { extractCSSCustomProperties } from './styleExtractor';
+import { normalizeColor } from '../utils/styleHelpers';
+import { getCachedElements, getCachedComputedStyle } from '../utils/domCache';
 
 // ============================================================================
-// Helper Functions for CSS Custom Properties and Color Variable Mapping
+// Helper Functions for Color Variable Mapping
 // ============================================================================
-
-/**
- * Extracts CSS custom properties (CSS variables) from all stylesheets on the page.
- *
- * Scans through document stylesheets to find CSS variables defined in theme selectors
- * like :root, .dark, [data-theme], etc. Falls back to getComputedStyle if no
- * stylesheets are accessible. Filters out browser extension variables.
- *
- * @returns Object mapping variable names to theme-specific values
- *
- * @example
- * ```typescript
- * const vars = extractCSSCustomProperties();
- * // { "--primary-color": { light: "#0066cc", dark: "#3399ff" } }
- * ```
- */
-function extractCSSCustomProperties(): CSSCustomProperties {
-  const cssVars: CSSCustomProperties = {};
-  const stylesheets = document.styleSheets;
-
-  for (let i = 0; i < stylesheets.length; i++) {
-    try {
-      const stylesheet = stylesheets[i];
-
-      // Skip browser extension stylesheets
-      if (stylesheet.href && (
-        stylesheet.href.includes('chrome-extension://') ||
-        stylesheet.href.includes('moz-extension://') ||
-        stylesheet.href.includes('safari-extension://')
-      )) {
-        continue;
-      }
-
-      let rules: CSSRuleList | null = null;
-      try {
-        rules = stylesheet.cssRules || stylesheet.rules;
-      } catch {
-        continue; // CORS blocked
-      }
-
-      if (!rules || rules.length === 0) continue;
-
-      parseCSSRules(rules, cssVars);
-    } catch {
-      // Silent fail - continue to next sheet
-    }
-  }
-
-  // Fallback: Read from getComputedStyle if no variables found
-  if (Object.keys(cssVars).length === 0) {
-    extractComputedVariables(cssVars);
-  }
-
-  filterExtensionVariables(cssVars);
-  return cssVars;
-}
-
-/**
- * Extracts CSS variables using getComputedStyle as a fallback method.
- *
- * This function is called when no CSS variables are found via stylesheet scanning.
- * It reads computed styles from the document root and attempts to detect dark mode
- * variants by temporarily toggling the 'dark' class.
- *
- * @param cssVars - The CSS variables object to populate
- */
-function extractComputedVariables(cssVars: CSSCustomProperties): void {
-  const rootStyles = getComputedStyle(document.documentElement);
-
-  // Extract light mode
-  for (let i = 0; i < rootStyles.length; i++) {
-    const prop = rootStyles[i];
-    if (prop.startsWith('--')) {
-      const value = rootStyles.getPropertyValue(prop).trim();
-      if (value) {
-        cssVars[prop] = { light: value };
-      }
-    }
-  }
-
-  // Try dark mode detection
-  const hadDarkClass = document.documentElement.classList.contains('dark');
-  const hadDataTheme = document.documentElement.getAttribute('data-theme');
-
-  document.documentElement.classList.add('dark');
-  const darkStyles = getComputedStyle(document.documentElement);
-
-  for (let i = 0; i < darkStyles.length; i++) {
-    const prop = darkStyles[i];
-    if (prop.startsWith('--')) {
-      const value = darkStyles.getPropertyValue(prop).trim();
-      if (value && cssVars[prop] && cssVars[prop].light !== value) {
-        cssVars[prop].dark = value;
-      } else if (value && !cssVars[prop]) {
-        cssVars[prop] = { dark: value };
-      }
-    }
-  }
-
-  // Restore original state
-  if (!hadDarkClass) {
-    document.documentElement.classList.remove('dark');
-  }
-  if (hadDataTheme !== null) {
-    document.documentElement.setAttribute('data-theme', hadDataTheme);
-  }
-}
-
-/**
- * Filters out browser extension and utility CSS variables.
- *
- * Removes CSS variables that belong to browser extensions (vimium, arc, grammarly, etc.)
- * and CSS framework utility variables (Tailwind utilities, generic names like 'spacing',
- * 'default', etc.) to focus on application-specific design tokens.
- *
- * @param cssVars - The CSS variables object to filter (modified in place)
- */
-function filterExtensionVariables(cssVars: CSSCustomProperties): void {
-  const extensionPatterns = [
-    'vimium-', 'arc-', 'extension-', 'grammarly-', 'lastpass-'
-  ];
-
-  const tailwindUtilityPatterns = [
-    'container-', 'text-', 'blur-', 'font-weight-', 'font-size-',
-    'tracking-', 'leading-', 'animate-', 'ease-', 'default-',
-    'spacing-', 'line-height-', 'letter-spacing-', 'prose-',
-    'screen-', 'breakpoint-', 'duration-', 'delay-', 'scale-',
-    'rotate-', 'translate-', 'skew-'
-  ];
-
-  const utilityExactNames = ['spacing', 'default', 'none', 'auto', 'full', 'screen'];
-
-  for (const varName in cssVars) {
-    const cleanName = varName.replace('--', '').toLowerCase();
-
-    if (extensionPatterns.some(pattern => cleanName.startsWith(pattern))) {
-      delete cssVars[varName];
-      continue;
-    }
-
-    if (tailwindUtilityPatterns.some(pattern => cleanName.startsWith(pattern))) {
-      delete cssVars[varName];
-      continue;
-    }
-
-    if (utilityExactNames.includes(cleanName)) {
-      delete cssVars[varName];
-    }
-  }
-}
-
-/**
- * Recursively parses CSS rules to find custom properties (CSS variables).
- *
- * Traverses through CSS rules, handling nested rules like @media and @supports,
- * and extracts CSS custom properties from theme-related selectors (:root, .dark,
- * [data-theme], etc.). Groups variables by theme variant.
- *
- * @param rules - The CSS rule list to parse
- * @param cssVars - The CSS variables object to populate
- */
-function parseCSSRules(rules: CSSRuleList, cssVars: CSSCustomProperties): void {
-  for (let i = 0; i < rules.length; i++) {
-    const rule = rules[i];
-
-    // Handle nested rules (@media, @supports)
-    if ('cssRules' in rule && rule.cssRules) {
-      parseCSSRules(rule.cssRules as CSSRuleList, cssVars);
-      continue;
-    }
-
-    if (!('style' in rule)) continue;
-
-    const selector = 'selectorText' in rule ? (rule as CSSStyleRule).selectorText : '';
-    if (!selector) continue;
-
-    // Only extract from theme selectors
-    const isThemeSelector = (
-      selector === ':root' ||
-      selector === 'html' ||
-      selector === 'body' ||
-      selector.includes('.dark') ||
-      selector.includes('[data-theme') ||
-      selector.includes(':host')
-    );
-
-    if (!isThemeSelector) continue;
-
-    const theme = getThemeFromSelector(selector);
-    const style = rule.style as CSSStyleDeclaration;
-
-    for (let j = 0; j < style.length; j++) {
-      const property = style[j];
-      if (property.startsWith('--')) {
-        const value = style.getPropertyValue(property).trim();
-        if (!cssVars[property]) {
-          cssVars[property] = {};
-        }
-        cssVars[property][theme] = value;
-      }
-    }
-  }
-}
-
-/**
- * Determines the theme variant (light or dark) from a CSS selector.
- *
- * Analyzes the selector text to identify if it represents a dark theme selector
- * (e.g., .dark, [data-theme="dark"]) or defaults to light theme.
- *
- * @param selector - The CSS selector to analyze
- * @returns The theme variant: 'dark' or 'light'
- */
-function getThemeFromSelector(selector: string): string {
-  const lower = selector.toLowerCase();
-
-  if (lower.includes('.dark') ||
-      lower.includes('[data-theme="dark"]') ||
-      lower.includes('[data-theme=\'dark\']') ||
-      lower.includes('[theme="dark"]') ||
-      lower.includes('.theme-dark')) {
-    return 'dark';
-  }
-
-  return 'light';
-}
-
-/**
- * Normalizes color values to a consistent rgb() or rgba() format.
- *
- * Converts rgba colors with alpha=1 to rgb format for consistency.
- * Preserves hex colors as-is. Ensures uniform color representation for
- * accurate comparison and deduplication.
- *
- * @param color - The color string to normalize
- * @returns Normalized color in rgb(), rgba(), or hex format
- */
-function normalizeColor(color: string): string {
-  if (color.startsWith('#')) return color;
-
-  const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-
-  if (rgbaMatch) {
-    const [, r, g, b, a] = rgbaMatch;
-    const alpha = a !== undefined ? parseFloat(a) : 1;
-
-    if (alpha === 1) {
-      return `rgb(${r}, ${g}, ${b})`;
-    }
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  }
-
-  return color;
-}
 
 /**
  * Deduplicates array items based on specified object keys.
@@ -331,7 +80,7 @@ function buildColorVariableMap(cssVariables: CSSCustomProperties): Map<string, s
 
       // Set the variable value and read the computed color
       tempDiv.style.color = `var(${varName})`;
-      const computedColor = getComputedStyle(tempDiv).color;
+      const computedColor = getCachedComputedStyle(tempDiv).color;
 
       if (computedColor && computedColor !== 'rgba(0, 0, 0, 0)') {
         const normalized = normalizeColor(computedColor);
@@ -340,7 +89,7 @@ function buildColorVariableMap(cssVariables: CSSCustomProperties): Map<string, s
 
       // Also try setting the raw value directly to handle all color formats
       tempDiv.style.color = lightValue;
-      const directComputed = getComputedStyle(tempDiv).color;
+      const directComputed = getCachedComputedStyle(tempDiv).color;
 
       if (directComputed && directComputed !== computedColor) {
         const directNormalized = normalizeColor(directComputed);
@@ -610,13 +359,13 @@ export function extractLayoutStructure(): LayoutStructure {
     sidebars: []
   };
 
-  const allElements = document.querySelectorAll('*');
+  const allElements = getCachedElements();
   const MAX_ELEMENTS = 1000;
   const elementsToCheck = Array.from(allElements).slice(0, MAX_ELEMENTS);
 
   elementsToCheck.forEach(el => {
     const element = el as HTMLElement;
-    const styles = window.getComputedStyle(element);
+    const styles = getCachedComputedStyle(element);
     const position = styles.position;
     const display = styles.display;
 
@@ -726,13 +475,13 @@ export function extractLayoutStructure(): LayoutStructure {
  */
 export function extractFlexboxPatterns(): FlexboxPattern[] {
   const flexPatterns = new Map<string, FlexboxPattern>();
-  const allElements = document.querySelectorAll('*');
+  const allElements = getCachedElements();
   const MAX_ELEMENTS = 1000;
   const elementsToCheck = Array.from(allElements).slice(0, MAX_ELEMENTS);
 
   elementsToCheck.forEach(el => {
     const element = el as HTMLElement;
-    const styles = window.getComputedStyle(element);
+    const styles = getCachedComputedStyle(element);
 
     if (styles.display === 'flex' || styles.display === 'inline-flex') {
       const pattern = {
@@ -883,13 +632,13 @@ export function extractComponentComposition(): CompositionPattern[] {
 export function extractZIndexHierarchy(): ZIndexHierarchy {
   const zIndexMap = new Map<number, { elements: number; contexts: string[] }>();
 
-  const allElements = document.querySelectorAll('*');
+  const allElements = getCachedElements();
   const MAX_ELEMENTS = 1000;
   const elementsToCheck = Array.from(allElements).slice(0, MAX_ELEMENTS);
 
   elementsToCheck.forEach(el => {
     const element = el as HTMLElement;
-    const styles = window.getComputedStyle(element);
+    const styles = getCachedComputedStyle(element);
     const zIndex = parseInt(styles.zIndex, 10);
 
     if (!isNaN(zIndex) && zIndex !== 0) {
@@ -999,12 +748,12 @@ export function extractColorContext(): ColorContext {
   const colorVarMap = buildColorVariableMap(cssVariables);
 
   const pairingMap = new Map<string, any>();
-  const elements = document.querySelectorAll('*');
+  const elements = getCachedElements();
   const maxElements = Math.min(elements.length, 300);
 
   for (let i = 0; i < maxElements; i++) {
     const element = elements[i];
-    const styles = getComputedStyle(element);
+    const styles = getCachedComputedStyle(element);
 
     // Track background colors
     const bg = styles.backgroundColor;
@@ -1118,7 +867,7 @@ export function extractSpacingScale(): SpacingScale {
   // Collect all spacing values from elements
   for (let i = 0; i < maxElements; i++) {
     const el = elements[i] as HTMLElement;
-    const styles = getComputedStyle(el);
+    const styles = getCachedComputedStyle(el);
     const tagName = el.tagName.toLowerCase();
 
     // Skip script, style, and head elements
@@ -1243,7 +992,7 @@ export function extractLayoutPatterns(): LayoutPatterns {
   const containerMap = new Map<string, Container>();
 
   containers.forEach(el => {
-    const styles = getComputedStyle(el);
+    const styles = getCachedComputedStyle(el);
     const maxWidth = styles.maxWidth;
 
     if (maxWidth && maxWidth !== 'none') {
@@ -1275,7 +1024,7 @@ export function extractLayoutPatterns(): LayoutPatterns {
 
   for (let i = 0; i < maxSpacingElements; i++) {
     const el = spacingElements[i];
-    const styles = getComputedStyle(el);
+    const styles = getCachedComputedStyle(el);
 
     const padding = styles.padding;
     if (padding && padding !== '0px') {
@@ -1353,13 +1102,15 @@ export function extractBreakpoints(): number[] {
           }
         }
       }
-    } catch {
+    } catch (error) {
+      // Log for debugging (use console.debug to keep it low-priority)
+      console.debug('Failed to access stylesheet for breakpoint extraction (likely CORS):', error);
       // CORS or permission error - skip this stylesheet
     }
   }
 
   // Extract from Tailwind responsive classes
-  const allElements = document.querySelectorAll('*');
+  const allElements = getCachedElements();
   const maxElements = Math.min(allElements.length, 500);
 
   for (let i = 0; i < maxElements; i++) {

@@ -2,6 +2,7 @@ import type {
   AnimationExtraction,
   TransitionPattern
 } from '../types/extraction';
+import { getCachedElements } from '../utils/domCache';
 
 /**
  * Extracts animations and transition patterns from the current document.
@@ -34,7 +35,7 @@ export function extractAnimations(): AnimationExtraction {
   const transitions = new Map<string, number>();
   const animations = new Map<string, number>();
 
-  const allElements = document.querySelectorAll('*');
+  const allElements = getCachedElements();
   const MAX_ELEMENTS = 1000;
   const elementsToCheck = Array.from(allElements).slice(0, MAX_ELEMENTS);
 

@@ -1,4 +1,5 @@
 import { getCleanHTML } from '../../utils/styleHelpers';
+import { extractStateStyles, createStyleSignature } from '../../utils/componentHelpers';
 
 /**
  * Represents style information for a component variant
@@ -540,25 +541,6 @@ export function extractAvatars(): AvatarVariant[] {
 // ============================================================================
 
 /**
- * Creates a unique signature for an element based on key style properties.
- * Rounds padding to nearest 16px to group similar variants together.
- *
- * @param element - The HTML element to create a signature for
- * @returns A string signature representing the element's visual style
- *
- * @internal
- */
-function createStyleSignature(element: HTMLElement): string {
-  const styles = getComputedStyle(element);
-
-  // Round padding to nearest 16px to group variants with minor padding differences
-  const paddingLeft = Math.round(parseInt(styles.paddingLeft) / 16) * 16;
-  const paddingTop = Math.round(parseInt(styles.paddingTop) / 16) * 16;
-
-  return `${styles.backgroundColor}-${styles.color}-${styles.borderRadius}-${paddingLeft}px-${paddingTop}px-${styles.fontSize}-${styles.fontWeight}`;
-}
-
-/**
  * Infers card variant from classes or structure.
  *
  * Analyzes class names and DOM structure to categorize cards as:
@@ -582,142 +564,6 @@ function inferCardVariant(card: HTMLElement): 'elevated' | 'flat' | 'interactive
   if (card.querySelector('img, video')) return 'media';
 
   return 'default';
-}
-
-/**
- * Extracts interactive state styles (hover, focus, active, disabled) from CSS rules
- * and element attributes.
- *
- * Attempts to read pseudo-class styles from matching CSS rules. Falls back to
- * detecting utility class patterns (e.g., Tailwind's hover:, focus: prefixes).
- *
- * @param element - The element to extract state styles from
- * @returns State styles object or undefined if no states found
- *
- * @internal
- */
-function extractStateStyles(element: HTMLElement): StateStyles | undefined {
-  const states: StateStyles = {};
-
-  // Try to get state styles from CSS rules matching this element
-  try {
-    const matchingRules = getMatchingCSSRules(element);
-
-    matchingRules.forEach(rule => {
-      const selectorText = rule.selectorText;
-
-      // Check for :hover pseudo-class
-      if (selectorText.includes(':hover')) {
-        if (!states.hover) states.hover = {};
-        const style = rule.style;
-        if (style.backgroundColor) states.hover.backgroundColor = style.backgroundColor;
-        if (style.color) states.hover.color = style.color;
-        if (style.opacity) states.hover.opacity = style.opacity;
-        if (style.transform) states.hover.transform = style.transform;
-        if (style.boxShadow) states.hover.boxShadow = style.boxShadow;
-        if (style.borderColor) states.hover.borderColor = style.borderColor;
-      }
-
-      // Check for :focus pseudo-class
-      if (selectorText.includes(':focus')) {
-        if (!states.focus) states.focus = {};
-        const style = rule.style;
-        if (style.outline) states.focus.outline = style.outline;
-        if (style.boxShadow) states.focus.boxShadow = style.boxShadow;
-        if (style.borderColor) states.focus.borderColor = style.borderColor;
-      }
-
-      // Check for :active pseudo-class
-      if (selectorText.includes(':active')) {
-        if (!states.active) states.active = {};
-        const style = rule.style;
-        if (style.backgroundColor) states.active.backgroundColor = style.backgroundColor;
-        if (style.transform) states.active.transform = style.transform;
-        if (style.boxShadow) states.active.boxShadow = style.boxShadow;
-      }
-
-      // Check for :disabled pseudo-class
-      if (selectorText.includes(':disabled')) {
-        if (!states.disabled) states.disabled = {};
-        const style = rule.style;
-        if (style.opacity) states.disabled.opacity = style.opacity;
-        if (style.cursor) states.disabled.cursor = style.cursor;
-        if (style.backgroundColor) states.disabled.backgroundColor = style.backgroundColor;
-      }
-    });
-  } catch (e) {
-    // Fallback: check for Tailwind-style utility classes
-    const classes = Array.from(element.classList);
-
-    // Extract hover states
-    const hoverClasses = classes.filter(c => c.includes('hover:'));
-    if (hoverClasses.length > 0) {
-      states.hover = { utilityClasses: hoverClasses };
-    }
-
-    // Extract focus states
-    const focusClasses = classes.filter(c => c.includes('focus:'));
-    if (focusClasses.length > 0) {
-      states.focus = { utilityClasses: focusClasses };
-    }
-
-    // Extract disabled states
-    const disabledClasses = classes.filter(c => c.includes('disabled:'));
-    if (disabledClasses.length > 0) {
-      states.disabled = { utilityClasses: disabledClasses };
-    }
-  }
-
-  // Check if element is actually disabled
-  if (element.hasAttribute('disabled')) {
-    if (!states.disabled) states.disabled = {};
-    states.disabled.isDisabled = true;
-  }
-
-  return Object.keys(states).length > 0 ? states : undefined;
-}
-
-/**
- * Gets all CSS rules that match a given element.
- *
- * Iterates through all stylesheets in the document and returns rules whose
- * selectors match the element. Handles cross-origin stylesheet errors gracefully.
- *
- * @param element - The element to find matching CSS rules for
- * @returns Array of CSS rules that apply to the element
- *
- * @internal
- */
-function getMatchingCSSRules(element: HTMLElement): CSSStyleRule[] {
-  const matchingRules: CSSStyleRule[] = [];
-
-  try {
-    const sheets = Array.from(document.styleSheets);
-
-    for (const sheet of sheets) {
-      try {
-        const rules = Array.from(sheet.cssRules || []);
-
-        for (const rule of rules) {
-          if (rule instanceof CSSStyleRule) {
-            try {
-              if (element.matches(rule.selectorText)) {
-                matchingRules.push(rule);
-              }
-            } catch (e) {
-              // Invalid selector, skip
-            }
-          }
-        }
-      } catch (e) {
-        // Cross-origin stylesheet, skip
-      }
-    }
-  } catch (e) {
-    // Error accessing stylesheets
-  }
-
-  return matchingRules;
 }
 
 /**

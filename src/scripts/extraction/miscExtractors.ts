@@ -16,6 +16,7 @@ import type {
   ResponsiveBreakpoints,
   ScrollbarStyle
 } from '../types/extraction';
+import { getCachedElements } from '../utils/domCache';
 
 /**
  * Extracts icon usage patterns from the current page
@@ -176,7 +177,7 @@ export function extractGradients(): Gradient[] {
   const gradients: Gradient[] = [];
   const seen = new Set<string>();
 
-  const allElements = document.querySelectorAll('*');
+  const allElements = getCachedElements();
   const MAX_ELEMENTS = 1000;
   const elementsToCheck = Array.from(allElements).slice(0, MAX_ELEMENTS);
 

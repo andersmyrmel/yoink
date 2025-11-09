@@ -5,24 +5,7 @@ import {
   SkeletonComponent,
   ComponentVariant
 } from '../../types/extraction';
-
-
-/**
- * Creates a unique signature for an element based on key styles.
- * Rounds padding to nearest 16px to group similar variants together.
- *
- * @param element - The HTML element to create a signature for
- * @returns A unique string signature representing the element's key styles
- */
-function createStyleSignature(element: HTMLElement): string {
-  const styles = getComputedStyle(element);
-
-  // Round padding to nearest 16px to group variants with minor padding differences
-  const paddingLeft = Math.round(parseInt(styles.paddingLeft) / 16) * 16;
-  const paddingTop = Math.round(parseInt(styles.paddingTop) / 16) * 16;
-
-  return `${styles.backgroundColor}-${styles.color}-${styles.borderRadius}-${paddingLeft}px-${paddingTop}px-${styles.fontSize}-${styles.fontWeight}`;
-}
+import { createStyleSignature } from '../../utils/componentHelpers';
 
 /**
  * Extracts alert and banner components from the page.

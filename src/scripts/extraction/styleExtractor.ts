@@ -16,6 +16,7 @@ import type {
   ColorExtraction
 } from '../types/extraction';
 import { getThemeFromSelector, normalizeColor } from '../utils/styleHelpers';
+import { getCachedElements, getCachedComputedStyle } from '../utils/domCache';
 
 /**
  * Extracts CSS Custom Properties from stylesheets
@@ -55,15 +56,19 @@ export function extractCSSCustomProperties(): CSSCustomProperties {
       let rules: CSSRuleList | null = null;
       try {
         rules = stylesheet.cssRules || stylesheet.rules;
-      } catch {
+      } catch (error) {
+        // Log for debugging (use console.debug to keep it low-priority)
+        console.debug('Failed to access stylesheet rules (likely CORS):', error);
         continue; // CORS blocked
       }
 
       if (!rules || rules.length === 0) continue;
 
       parseCSSRules(rules, cssVars);
-    } catch {
-      // Silent fail - continue to next sheet
+    } catch (error) {
+      // Log for debugging (use console.debug to keep it low-priority)
+      console.debug('Failed to parse stylesheet:', error);
+      // Continue to next sheet
     }
   }
 
@@ -272,12 +277,12 @@ export function parseCSSRules(rules: CSSRuleList, cssVars: CSSCustomProperties):
  */
 export function extractColors(): ColorExtraction {
   const colorUsage = new Map<string, number>();
-  const elements = document.querySelectorAll('*');
+  const elements = getCachedElements();
   const maxElements = Math.min(elements.length, 200);
 
   for (let i = 0; i < maxElements; i++) {
     const element = elements[i];
-    const styles = window.getComputedStyle(element);
+    const styles = getCachedComputedStyle(element);
 
     // Background colors
     const bgColor = styles.backgroundColor;
@@ -333,7 +338,7 @@ export function extractBorderRadius(): string[] {
 
   for (let i = 0; i < maxElements; i++) {
     const element = elements[i];
-    const styles = window.getComputedStyle(element);
+    const styles = getCachedComputedStyle(element);
     const borderRadius = styles.borderRadius;
 
     if (borderRadius && borderRadius !== '0px') {
@@ -374,13 +379,13 @@ export function extractBorderRadius(): string[] {
  */
 export function extractShadows(): ShadowSystem {
   const shadowUsage = new Map<string, number>();
-  const elements = document.querySelectorAll('*');
+  const elements = getCachedElements();
   const maxElements = Math.min(elements.length, 500);
 
   // Collect all shadows with usage counts
   for (let i = 0; i < maxElements; i++) {
     const element = elements[i];
-    const styles = window.getComputedStyle(element);
+    const styles = getCachedComputedStyle(element);
     const boxShadow = styles.boxShadow;
 
     if (boxShadow && boxShadow !== 'none') {

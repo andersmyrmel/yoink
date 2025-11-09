@@ -22,6 +22,9 @@
 // Type imports
 import { ScanStylesRequest, ScanResponse, StyleExtraction } from './types/extraction';
 
+// Cache utilities
+import { clearCaches, getCachedElements } from './utils/domCache';
+
 // Style extraction imports
 import {
   extractCSSCustomProperties,
@@ -85,6 +88,7 @@ chrome.runtime.onMessage.addListener((
  * Main style extraction orchestrator
  *
  * Coordinates all extraction modules to collect design system information from the current page.
+ * Uses caching to optimize performance by scanning the DOM only once.
  *
  * @param includeComponents - Whether to include component detection and advanced analysis
  * @returns Complete style data extraction including colors, typography, layout, and optionally components
@@ -99,6 +103,12 @@ chrome.runtime.onMessage.addListener((
  * ```
  */
 function extractStyles(includeComponents: boolean = true): StyleExtraction {
+  // Clear caches from any previous extraction
+  clearCaches();
+
+  // Initialize DOM element cache (scans once, reused by all extractors)
+  getCachedElements();
+
   const cssVariables = extractCSSCustomProperties();
   const colorData = extractColors();
 

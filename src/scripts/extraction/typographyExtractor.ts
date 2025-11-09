@@ -7,6 +7,7 @@ import {
   analyzeLineHeightPatterns,
   inferHeadingLevelFromSize
 } from '../utils/textProcessor';
+import { getCachedComputedStyle } from '../utils/domCache';
 
 /**
  * Extracts font family values from elements on the page.
@@ -34,7 +35,7 @@ export function extractFonts(): string[] {
 
   for (let i = 0; i < maxElements; i++) {
     const element = elements[i];
-    const styles = window.getComputedStyle(element);
+    const styles = getCachedComputedStyle(element);
     const fontFamily = styles.fontFamily;
 
     if (fontFamily && fontFamily !== 'inherit') {
@@ -126,7 +127,7 @@ export function extractTypographyContext(): TypographyAnalysis {
     if (elements.length === 0) return;
 
     const firstElement = elements[0] as HTMLElement;
-    const styles = getComputedStyle(firstElement);
+    const styles = getCachedComputedStyle(firstElement);
     const actualFontSize = parseFloat(styles.fontSize);
 
     allFontSizes.push(actualFontSize);
@@ -173,7 +174,7 @@ export function extractTypographyContext(): TypographyAnalysis {
     const hasStructuralChildren = element.querySelector('div, section, article, aside, main') !== null;
     if (hasStructuralChildren && element.children.length > 0) continue;
 
-    const styles = getComputedStyle(element);
+    const styles = getCachedComputedStyle(element);
     const actualFontSize = parseFloat(styles.fontSize);
     const weight = parseInt(styles.fontWeight);
 
