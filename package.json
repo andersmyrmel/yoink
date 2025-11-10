@@ -5,6 +5,9 @@
   "scripts": {
     "build": "npm run compile && npm run bundle && npm run copy-assets",
     "compile": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
     "bundle": "npm run bundle-content && npm run bundle-background && npm run bundle-popup",
     "bundle-content": "esbuild dist/scripts/contentScript.js --bundle --outfile=dist/scripts/contentScript.js --format=iife --platform=browser --allow-overwrite",
     "bundle-background": "esbuild dist/scripts/background.js --bundle --outfile=dist/scripts/background.js --format=esm --platform=browser --allow-overwrite",
@@ -17,11 +20,15 @@
     "copy-manifest": "cp manifest.json dist/",
     "clean": "rm -rf dist && mkdir dist",
     "dev": "npm run clean && npm run build && npm run watch",
-    "package": "npm run clean && npm run build && cd dist && zip -r ../yoink-extension.zip ."
+    "package": "npm run clean && npm run build && cd dist && zip -r ../yoink-extension.zip .",
+    "check": "npm run typecheck && npm run lint"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
+    "@typescript-eslint/eslint-plugin": "^8.46.3",
+    "@typescript-eslint/parser": "^8.46.3",
     "esbuild": "^0.26.0",
+    "eslint": "^9.39.1",
     "typescript": "^5.3.3"
   },
   "keywords": [
