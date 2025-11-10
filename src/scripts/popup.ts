@@ -234,7 +234,7 @@ function generateDOMYAML(node: any, indentLevel: number): string {
  */
 function generateYAML(styles: any): string {
   const now = new Date().toISOString().split('T')[0];
-  let yaml = `# Design System Extraction\n\n`;
+  let yaml = `# Design System\n\n`;
 
   yaml += `metadata:\n`;
   yaml += `  extraction-date: ${now}\n`;
