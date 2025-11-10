@@ -1,7 +1,7 @@
 /**
  * Yoink Popup Script
  *
- * Handles the popup UI and markdown generation
+ * Handles the popup UI and YAML generation
  */
 
 const scanButton = document.getElementById('scanBtn') as HTMLButtonElement;
@@ -1065,7 +1065,7 @@ function generateYAML(styles: any): string {
 }
 
 /**
- * Generates complete markdown documentation
+ * Generates complete markdown documentation (legacy function, no longer used)
  */
 function generateMarkdown(styles: any): string {
   const now = new Date().toLocaleDateString();

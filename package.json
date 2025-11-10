@@ -1,6 +1,6 @@
 {
   "name": "yoink-design-system-extractor",
-  "version": "2.1.3",
+  "version": "1.0.0",
   "description": "Chrome extension to extract and analyze design system tokens from any website",
   "scripts": {
     "build": "npm run compile && npm run bundle && npm run copy-assets",
