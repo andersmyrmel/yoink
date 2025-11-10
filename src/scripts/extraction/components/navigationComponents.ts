@@ -1,4 +1,4 @@
-import { getCleanHTML } from '../../utils/styleHelpers';
+import { getCleanHTML, getClassName } from '../../utils/styleHelpers';
 import { NavigationComponent, TabComponent } from '../../types/extraction';
 import { extractStateStyles, createStyleSignature } from '../../utils/componentHelpers';
 
@@ -72,7 +72,7 @@ interface TabStyles extends Record<string, string> {
  * @returns The inferred variant type ('active', 'primary', 'secondary', or 'default')
  */
 function inferNavVariant(navItem: HTMLElement): string {
-  const className = navItem.className.toLowerCase();
+  const className = getClassName(navItem).toLowerCase();
   const isActive = className.includes('active') || navItem.getAttribute('aria-current') === 'page';
 
   if (isActive) return 'active';
@@ -341,7 +341,7 @@ export function extractTabs(): TabComponent[] {
       const existing = seen.get(signature)!;
       existing.count++;
     } else {
-      const isActive = el.getAttribute('aria-selected') === 'true' || el.className.includes('active');
+      const isActive = el.getAttribute('aria-selected') === 'true' || getClassName(el).includes('active');
 
       const componentStyles: TabStyles = {
         color: styles.color,

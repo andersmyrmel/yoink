@@ -14,7 +14,7 @@ You see a website with great design and want your AI coding assistant to build s
 
 1. Visit any website (Stripe, Linear, GitHub, etc.)
 2. Click the Yoink extension
-3. Click "Scan Page Styles"
+3. Click "Scan Page" (optionally toggle "Include components" for detailed component detection)
 4. Copy the YAML output
 5. Paste into Claude: "Build a dashboard using this design system..."
 

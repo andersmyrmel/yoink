@@ -8,7 +8,7 @@
  * - Style extraction logic is in ./extraction/styleExtractor
  * - Typography extraction is in ./extraction/typographyExtractor
  * - Layout extraction is in ./extraction/layoutExtractor
- * - Component detection is in ./extraction/componentDetector
+ * - Component detection is in ./extraction/components
  * - Animation extraction is in ./extraction/animationExtractor
  * - DOM extraction is in ./extraction/domExtractor
  * - Miscellaneous extractors are in ./extraction/miscExtractors

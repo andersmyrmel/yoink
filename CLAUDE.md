@@ -55,7 +55,7 @@ The extension follows Chrome Extension Manifest V3 architecture with three main 
 
 3. **Popup UI** (`src/scripts/popup.ts`, `src/popup.html`, `src/styles/popup.css`)
    - Compact single-page interface
-   - "Scan Page Styles" button triggers extraction
+   - "Scan Page" button triggers extraction
    - Checkbox to include/exclude component detection (faster without)
    - Displays YAML preview
    - Copy to clipboard and download buttons
@@ -92,7 +92,7 @@ Each component extractor detects variants, counts occurrences, extracts styles, 
 
 ### Data Flow
 
-1. User clicks "Scan Page Styles" in popup
+1. User clicks "Scan Page" in popup
 2. Popup sends `scanStyles` message to content script via `chrome.tabs.sendMessage`
 3. Content script calls `extractStyles(includeComponents)`
 4. Content script clears caches and initializes DOM cache

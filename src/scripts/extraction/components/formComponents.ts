@@ -11,7 +11,7 @@ import {
   InputComponent,
   ComponentStyles
 } from '../../types/extraction';
-import { getCleanHTML } from '../../utils/styleHelpers';
+import { getCleanHTML, getClassName } from '../../utils/styleHelpers';
 import { extractStateStyles, createStyleSignature } from '../../utils/componentHelpers';
 
 /**
@@ -29,7 +29,7 @@ import { extractStateStyles, createStyleSignature } from '../../utils/componentH
  * // Returns: "text" or "text-error" if error class is present
  */
 export function inferInputVariant(input: HTMLElement, type: string): string {
-  const className = input.className.toLowerCase();
+  const className = getClassName(input).toLowerCase();
 
   if (type === 'checkbox') return 'checkbox';
   if (type === 'radio') return 'radio';

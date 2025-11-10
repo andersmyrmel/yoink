@@ -1,4 +1,4 @@
-import { getCleanHTML } from '../../utils/styleHelpers';
+import { getCleanHTML, getClassName } from '../../utils/styleHelpers';
 import {
   AlertComponent,
   BadgeComponent,
@@ -80,7 +80,7 @@ export function extractAlerts(): AlertComponent[] {
  * @returns The inferred variant type (success, error, warning, info, alert, or default)
  */
 function inferAlertVariant(alert: HTMLElement): string {
-  const className = alert.className.toLowerCase();
+  const className = getClassName(alert).toLowerCase();
   const role = alert.getAttribute('role');
 
   if (className.includes('success')) return 'success';
@@ -309,7 +309,7 @@ export function extractBadges(): BadgeComponent[] {
  * @returns The inferred variant type (success, error, warning, info, primary, secondary, or default)
  */
 function inferBadgeVariant(badge: HTMLElement): string {
-  const className = badge.className.toLowerCase();
+  const className = getClassName(badge).toLowerCase();
 
   if (className.includes('success') || className.includes('green')) return 'success';
   if (className.includes('error') || className.includes('danger') || className.includes('red')) return 'error';

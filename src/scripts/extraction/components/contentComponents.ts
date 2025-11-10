@@ -1,4 +1,4 @@
-import { getCleanHTML } from '../../utils/styleHelpers';
+import { getCleanHTML, getClassName } from '../../utils/styleHelpers';
 import { extractStateStyles, createStyleSignature } from '../../utils/componentHelpers';
 
 /**
@@ -556,7 +556,7 @@ export function extractAvatars(): AvatarVariant[] {
  * @internal
  */
 function inferCardVariant(card: HTMLElement): 'elevated' | 'flat' | 'interactive' | 'media' | 'default' {
-  const className = card.className.toLowerCase();
+  const className = getClassName(card).toLowerCase();
 
   if (className.includes('elevated') || className.includes('raised')) return 'elevated';
   if (className.includes('flat') || className.includes('outlined')) return 'flat';
