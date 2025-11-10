@@ -452,7 +452,7 @@ function parseColorToRGB(color: string): { r: number; g: number; b: number } | n
             return parseColorToRGB(computedStyle);
           }
         }
-      } catch (e) {
+      } catch (_e) {
         // Canvas method failed, continue to DOM method
       }
 
@@ -472,7 +472,7 @@ function parseColorToRGB(color: string): { r: number; g: number; b: number } | n
 
       // Recursively parse the computed rgb value
       return parseColorToRGB(computed);
-    } catch (e) {
+    } catch (_e) {
       return null;
     }
   }

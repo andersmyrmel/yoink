@@ -295,11 +295,11 @@ export function extractResponsiveBreakpoints(): ResponsiveBreakpoints {
             }
           }
         });
-      } catch (e) {
+      } catch (_e) {
         // Cross-origin stylesheet, skip
       }
     });
-  } catch (e) {
+  } catch (_e) {
     // Error accessing stylesheets
   }
 
@@ -419,11 +419,11 @@ export function extractScrollbarStyles(): ScrollbarStyle[] {
             }
           }
         });
-      } catch (e) {
+      } catch (_e) {
         // Cross-origin stylesheet, skip
       }
     });
-  } catch (e) {
+  } catch (_e) {
     // Error accessing stylesheets
   }
 
