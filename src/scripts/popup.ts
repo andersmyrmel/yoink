@@ -270,6 +270,14 @@ function generateYAML(styles: any): string {
     yaml += `  confidence: ${scale.confidence}\n`;
   }
 
+  // Fonts
+  if (styles.fonts && styles.fonts.length > 0) {
+    yaml += `\n  fonts:\n`;
+    styles.fonts.forEach((font: string) => {
+      yaml += `    - "${font}"\n`;
+    });
+  }
+
   // Headings
   if (styles.typographyContext?.headings) {
     yaml += `\n  headings:\n`;

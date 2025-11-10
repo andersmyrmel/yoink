@@ -600,7 +600,7 @@ export function groupShadowsByElevation(
 
   // Define elevation levels based on intensity ranges
   const elevationRanges = [
-    { level: 0, name: 'None', min: 0, max: 5 },
+    { level: 0, name: 'Border/Outline', min: 0, max: 5 },
     { level: 1, name: 'Subtle', min: 5, max: 25 },
     { level: 2, name: 'Moderate', min: 25, max: 50 },
     { level: 3, name: 'Strong', min: 50, max: 80 },

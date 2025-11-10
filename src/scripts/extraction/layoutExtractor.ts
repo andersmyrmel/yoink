@@ -392,16 +392,21 @@ export function extractLayoutStructure(): LayoutStructure {
           zIndex: styles.zIndex
         });
       } else {
-        layouts.fixedElements.push({
-          position: 'fixed',
-          width: `${Math.round(width)}px`,
-          height: `${Math.round(height)}px`,
-          top: isNaN(top) ? 'auto' : `${Math.round(top)}px`,
-          left: isNaN(left) ? 'auto' : `${Math.round(left)}px`,
-          right: isNaN(right) ? 'auto' : `${Math.round(right)}px`,
-          bottom: isNaN(bottom) ? 'auto' : `${Math.round(bottom)}px`,
-          zIndex: styles.zIndex
-        });
+        // Filter out tracking pixels and other tiny elements (< 5px in either dimension)
+        const isTrackingPixel = width < 5 || height < 5;
+
+        if (!isTrackingPixel) {
+          layouts.fixedElements.push({
+            position: 'fixed',
+            width: `${Math.round(width)}px`,
+            height: `${Math.round(height)}px`,
+            top: isNaN(top) ? 'auto' : `${Math.round(top)}px`,
+            left: isNaN(left) ? 'auto' : `${Math.round(left)}px`,
+            right: isNaN(right) ? 'auto' : `${Math.round(right)}px`,
+            bottom: isNaN(bottom) ? 'auto' : `${Math.round(bottom)}px`,
+            zIndex: styles.zIndex
+          });
+        }
       }
     }
 
