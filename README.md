@@ -1,4 +1,4 @@
-# Yoink - Design System Extractor
+# Yoink
 
 Extract any website's design system into structured YAML that you can feed directly to AI coding assistants like Claude.
 
@@ -33,6 +33,7 @@ Everything in clean YAML that AI assistants understand perfectly.
 ## Installation
 
 ### Chrome Web Store (coming soon)
+
 Will be available with one-click install once published.
 
 ### From source
@@ -45,6 +46,7 @@ npm run build
 ```
 
 Then in Chrome:
+
 1. Go to `chrome://extensions/`
 2. Enable "Developer mode"
 3. Click "Load unpacked"
