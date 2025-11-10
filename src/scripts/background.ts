@@ -32,13 +32,3 @@ chrome.runtime.onMessage.addListener((
 
   return true; // Indicates async response
 });
-
-/**
- * Update extension badge
- * @param text - Badge text to display
- * @param color - Badge background color
- */
-function updateBadge(text: string, color = '#6366f1'): void {
-  chrome.action.setBadgeText({ text });
-  chrome.action.setBadgeBackgroundColor({ color });
-}

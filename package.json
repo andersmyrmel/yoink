@@ -3,7 +3,12 @@
   "version": "2.1.3",
   "description": "Chrome extension to extract and analyze design system tokens from any website",
   "scripts": {
-    "build": "tsc && npm run copy-assets",
+    "build": "npm run compile && npm run bundle && npm run copy-assets",
+    "compile": "tsc",
+    "bundle": "npm run bundle-content && npm run bundle-background && npm run bundle-popup",
+    "bundle-content": "esbuild dist/scripts/contentScript.js --bundle --outfile=dist/scripts/contentScript.js --format=iife --platform=browser --allow-overwrite",
+    "bundle-background": "esbuild dist/scripts/background.js --bundle --outfile=dist/scripts/background.js --format=esm --platform=browser --allow-overwrite",
+    "bundle-popup": "esbuild dist/scripts/popup.js --bundle --outfile=dist/scripts/popup.js --format=iife --platform=browser --allow-overwrite",
     "watch": "tsc --watch",
     "copy-assets": "npm run copy-html && npm run copy-css && npm run copy-icons && npm run copy-manifest",
     "copy-html": "cp src/popup.html dist/",
@@ -16,6 +21,7 @@
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
+    "esbuild": "^0.26.0",
     "typescript": "^5.3.3"
   },
   "keywords": [
