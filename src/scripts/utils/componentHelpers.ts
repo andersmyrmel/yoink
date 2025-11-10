@@ -120,7 +120,7 @@ export function extractStateStyles(element: HTMLElement): StateStyles | undefine
         if (style.backgroundColor) states.disabled.backgroundColor = style.backgroundColor;
       }
     });
-  } catch (e) {
+  } catch (_e) {
     // Fallback: check for Tailwind-style utility classes
     const classes = Array.from(element.classList);
 
@@ -200,16 +200,16 @@ export function getMatchingCSSRules(element: HTMLElement): CSSStyleRule[] {
               if (element.matches(rule.selectorText)) {
                 matchingRules.push(rule);
               }
-            } catch (e) {
+            } catch (_e) {
               // Invalid selector, skip
             }
           }
         }
-      } catch (e) {
+      } catch (_e) {
         // Cross-origin stylesheet, skip
       }
     }
-  } catch (e) {
+  } catch (_e) {
     // Error accessing stylesheets
   }
 

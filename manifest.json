@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Yoink",
-  "version": "2.1.3",
-  "description": "Extract design systems from any website - colors, fonts, spacing, and more into organized Markdown.",
+  "version": "1.0.0",
+  "description": "Extract design systems from any website into YAML. Perfect for feeding to AI coding assistants to match designs.",
   "permissions": [
     "activeTab",
     "scripting",

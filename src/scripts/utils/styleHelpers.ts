@@ -199,7 +199,7 @@ export function parseColorToRGB(color: string): { r: number; g: number; b: numbe
             return parseColorToRGB(computedStyle);
           }
         }
-      } catch (e) {
+      } catch (_e) {
         // Canvas method failed, continue to DOM method
       }
 
@@ -219,7 +219,7 @@ export function parseColorToRGB(color: string): { r: number; g: number; b: numbe
 
       // Recursively parse the computed rgb value
       return parseColorToRGB(computed);
-    } catch (e) {
+    } catch (_e) {
       return null;
     }
   }
@@ -403,16 +403,16 @@ export function getMatchingCSSRules(element: HTMLElement): CSSStyleRule[] {
                   rules.push(rule);
                 }
               }
-            } catch (e) {
+            } catch (_e) {
               // Invalid selector, skip
             }
           }
         });
-      } catch (e) {
+      } catch (_e) {
         // Cross-origin stylesheet, skip
       }
     });
-  } catch (e) {
+  } catch (_e) {
     // Error accessing stylesheets
   }
 

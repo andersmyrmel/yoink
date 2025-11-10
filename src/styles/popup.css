@@ -202,7 +202,7 @@ main {
   color: var(--text-color);
 }
 
-.markdown-preview {
+.yaml-preview {
   max-height: 300px;
   overflow-y: auto;
   padding: var(--spacing-md);
@@ -217,21 +217,21 @@ main {
 }
 
 /* Custom scrollbar for preview */
-.markdown-preview::-webkit-scrollbar {
+.yaml-preview::-webkit-scrollbar {
   width: 8px;
 }
 
-.markdown-preview::-webkit-scrollbar-track {
+.yaml-preview::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 4px;
 }
 
-.markdown-preview::-webkit-scrollbar-thumb {
+.yaml-preview::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 4px;
 }
 
-.markdown-preview::-webkit-scrollbar-thumb:hover {
+.yaml-preview::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 

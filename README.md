@@ -1,133 +1,90 @@
-# Yoink - Design System Extractor
+# Yoink
 
-**Yoink** is a Chrome extension that scans any web page and extracts its design system tokens into a clean, organized Markdown document.
+Extract any website's design system into structured YAML that you can feed directly to AI coding assistants like Claude.
 
-## ✨ Features
+## Why?
 
-- 🎨 **CSS Variable Extraction**: Captures semantic CSS custom properties with theme variants
-- 🌓 **Dark Mode Detection**: Automatically detects and shows light/dark theme values
-- 📊 **Usage Tracking**: Shows how many elements use each color
-- 🔍 **Duplicate Detection**: Identifies CSS variables with the same color values
-- 📋 **Copy to Clipboard**: Instantly copy the generated Markdown
-- 💾 **Download as .md**: Save the design system as a Markdown file
-- 🚀 **No Network Calls**: Everything runs locally in your browser
+You see a website with great design. You want your AI coding assistant to build something that matches it. But describing colors, spacing, and component styles in words is tedious and error-prone.
 
-## 🚀 Installation
+**Yoink solves this:** Scan any page, get a complete design system in YAML format, paste it into Claude or your AI assistant, and tell it "build this but make it match this design system."
 
-### From Source
+## How it works
 
-1. **Clone the repository**:
-   ```bash
-   git clone <your-repo-url>
-   cd yoink
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Build the extension**:
-   ```bash
-   npm run build
-   ```
-
-4. **Load in Chrome**:
-   - Open Chrome and navigate to `chrome://extensions/`
-   - Enable "Developer mode" (toggle in top-right)
-   - Click "Load unpacked"
-   - Select the `dist/` folder
-
-## 📖 Usage
-
-1. Navigate to any website (e.g., https://ui.shadcn.com)
-2. Click the Yoink extension icon in your toolbar
+1. Visit any website (Stripe, Linear, GitHub, etc.)
+2. Click the Yoink extension
 3. Click "Scan Page Styles"
-4. Review the extracted design tokens
-5. Copy or download the Markdown output
+4. Copy the YAML output
+5. Paste into Claude: "Build a dashboard using this design system..."
 
-## 🏗️ Project Structure
+Your AI assistant now has exact colors, spacing, shadows, typography - everything it needs to match the design.
 
-```
-yoink/
-├── src/
-│   ├── scripts/
-│   │   ├── background.ts      # Service worker
-│   │   ├── contentScript.ts   # Page style extraction
-│   │   └── popup.ts           # UI and markdown generation
-│   ├── styles/
-│   │   └── popup.css          # Popup styling
-│   ├── types/
-│   │   └── index.ts           # TypeScript type definitions
-│   └── popup.html             # Popup UI
-├── dist/                      # Compiled extension (generated)
-├── icons/                     # Extension icons
-├── manifest.json              # Chrome extension manifest
-├── package.json               # Dependencies and scripts
-├── tsconfig.json              # TypeScript configuration
-└── README.md                  # This file
-```
+## What it extracts
 
-## 🛠️ Development
+- **Colors** - Full palette with CSS variables and usage counts
+- **Typography** - Fonts, sizes, weights, line heights
+- **Spacing** - Padding/margin scale (4px, 8px systems, etc.)
+- **Shadows** - Complete elevation system
+- **Components** - Buttons, inputs, cards, modals, etc. with all their states
+- **Layout** - Grids, containers, breakpoints
+- **Animations** - Transitions and timing functions
 
-### Scripts
+Everything in clean YAML that AI assistants understand perfectly.
 
-- `npm run build` - Build the extension (TypeScript → JavaScript + copy assets)
-- `npm run watch` - Watch mode for development
-- `npm run clean` - Clean the dist folder
-- `npm run package` - Create a zip file for distribution
+## Installation
 
-### Development Workflow
+### Chrome Web Store (coming soon)
 
-1. Make changes to source files in `src/`
-2. Run `npm run build` (or `npm run watch` for auto-rebuild)
-3. Go to `chrome://extensions/` and click refresh on the Yoink extension
-4. Test your changes
+Will be available with one-click install once published.
 
-### Tech Stack
-
-- **TypeScript** - Type-safe JavaScript
-- **Chrome Extension Manifest V3** - Latest extension format
-- **Vanilla JS/HTML/CSS** - No framework dependencies
-
-## 📝 What It Extracts
-
-### CSS Variables
-- Brand colors (medical-*, brand-*, company-*)
-- Sidebar colors (sidebar-*)
-- Chart colors (chart-*, graph-*, data-*)
-- Semantic UI colors (background, foreground, primary, etc.)
-- Border radius values
-- Filters out Tailwind utility variables and browser extension variables
-
-### Computed Values
-- Hardcoded colors with usage counts
-- Font families
-- Box shadows
-
-### Features
-- ✅ Light/dark theme detection
-- ✅ Usage statistics ("Used in X elements")
-- ✅ Duplicate color detection
-- ✅ OKLCH/LAB color format support with RGB conversion
-- ✅ Alpha channel handling (#rrggbbaa format)
-
-## 📦 Building for Production
+### From source
 
 ```bash
-npm run package
+git clone https://github.com/andersmyrmel/yoink
+cd yoink
+npm install
+npm run build
 ```
 
-This creates `yoink-extension.zip` in the root directory, ready for Chrome Web Store submission.
+Then in Chrome:
 
-## 🔄 Version History
+1. Go to `chrome://extensions/`
+2. Enable "Developer mode"
+3. Click "Load unpacked"
+4. Select the `dist/` folder
 
-See [CHANGELOG.md](./CHANGELOG.md) for version history and updates.
+## Features
 
-## 📄 License
+- Extracts 30+ component types with interactive states (hover, focus, disabled)
+- Detects light/dark theme variants automatically
+- Identifies Material Design patterns and elevation systems
+- Smart filtering (removes browser extension and utility CSS noise)
+- 100% private - runs entirely in your browser, no network requests
+- Fast extraction with DOM caching (~300ms on most sites)
 
-MIT License - Feel free to use and modify as needed!
+## Privacy
 
-## 🙏 Contributing
+- Zero network requests
+- No data collection or tracking
+- No analytics
+- All processing happens locally
+- Minimal permissions (only activeTab, scripting, clipboardWrite)
+- Open source - audit the code yourself
 
-Contributions welcome! Please feel free to submit a Pull Request.
+## Development
+
+```bash
+npm run build     # Production build
+npm run watch     # Development mode with auto-rebuild
+npm run package   # Create distribution ZIP for Chrome Web Store
+```
+
+## Tech Stack
+
+- TypeScript for type safety
+- Chrome Extension Manifest V3
+- esbuild for fast bundling
+- Zero runtime dependencies
+
+## License
+
+MIT - See LICENSE file
