@@ -57,7 +57,7 @@
 
 body {
   width: 400px;
-  min-height: 400px;
+  min-height: 260px;
   font-family: var(--font-system);
   color: var(--text-light);
   background: var(--bg-dark);
@@ -68,27 +68,27 @@ body {
 /* Header styles - Dark theme */
 header {
   background: var(--bg-dark);
-  padding: var(--space-xl) var(--space-lg);
+  padding: 20px var(--space-lg);
   text-align: center;
   position: relative;
-  margin-bottom: var(--space-xl);
+  margin-bottom: 16px;
 }
 
 .logo-container {
-  margin-bottom: var(--space-md);
+  margin-bottom: 8px;
   animation: fadeIn 0.4s ease-out;
   will-change: opacity;
 }
 
 .logo {
-  width: 56px;
-  height: 56px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-soft);
 }
 
 .brand-title {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: var(--font-weight-bold);
   color: var(--text-light);
   letter-spacing: -0.3px;
@@ -107,7 +107,7 @@ header {
 
 /* Main content area */
 main {
-  padding: 0 var(--space-lg);
+  padding: 0 var(--space-lg) var(--space-xl);
   background: var(--bg-dark);
 }
 
