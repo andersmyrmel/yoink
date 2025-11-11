@@ -236,19 +236,27 @@ export function extractTypographyContext(): TypographyAnalysis {
     if (isHeading) {
       // This looks like a heading - add to inferred headings
       const headingLevel = inferHeadingLevelFromSize(actualFontSize);
+      const actualTag = element.tagName.toLowerCase();
       const headingKey = `${headingLevel} (inferred)`;
 
       if (!inferredHeadingsMap.has(headingKey)) {
         const cleanText = text.replace(/\s+/g, ' ').substring(0, 50);
+
+        // Clarify usage text to show actual element type
+        let usageText = `${headingLevel} headings (styled ${actualFontSize}px text`;
+        if (actualTag !== headingLevel) {
+          usageText += ` in <${actualTag}> elements`;
+        }
+        usageText += ')';
 
         inferredHeadingsMap.set(headingKey, {
           fontSize: `${actualFontSize}px`,
           fontWeight: styles.fontWeight,
           lineHeight: styles.lineHeight,
           color: styles.color,
-          usage: `${headingLevel} headings (inferred from ${actualFontSize}px text)`,
+          usage: usageText,
           examples: [cleanText + (text.length > 50 ? '...' : '')],
-          tag: headingLevel,
+          tag: actualTag, // Store actual tag, not inferred level
           count: 1
         });
       } else {
