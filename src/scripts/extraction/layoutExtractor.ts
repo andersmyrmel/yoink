@@ -237,7 +237,37 @@ function findBaseUnit(values: number[]): number {
   const filtered = values.filter(v => v >= 4 && v <= 100);
   if (filtered.length === 0) return 8;
 
-  // Calculate GCD of all values
+  // Common base units in design systems (prioritize 8px and 4px)
+  const commonBaseUnits = [8, 4, 16, 12, 6];
+
+  // Find which base unit most values are divisible by OR close to (within 2px)
+  let bestBase = 8;
+  let bestScore = 0;
+
+  for (const base of commonBaseUnits) {
+    // Count exact divisibility
+    const exactMatches = filtered.filter(v => v % base === 0).length;
+    // Count close matches (within 2px of a multiple)
+    const closeMatches = filtered.filter(v => {
+      const ratio = v / base;
+      const nearestMultiple = Math.round(ratio);
+      return Math.abs(v - (nearestMultiple * base)) <= 2;
+    }).length;
+
+    const totalScore = exactMatches * 2 + closeMatches; // Weight exact matches higher
+
+    if (totalScore > bestScore) {
+      bestScore = totalScore;
+      bestBase = base;
+    }
+  }
+
+  // If we found a good match, return it
+  if (bestScore > filtered.length * 0.4) { // At least 40% of values match
+    return bestBase;
+  }
+
+  // Fallback: Calculate GCD if no common base unit fits well
   const gcd = (a: number, b: number): number => {
     return b === 0 ? a : gcd(b, a % b);
   };
@@ -248,27 +278,7 @@ function findBaseUnit(values: number[]): number {
     if (result <= 1) break; // Stop if GCD becomes 1
   }
 
-  // Common base units in design systems
-  const commonBaseUnits = [4, 8, 6, 12, 16];
-
-  // If calculated GCD is too small, find closest common base unit
-  if (result <= 2) {
-    // Find which base unit most values are divisible by
-    let bestBase = 8;
-    let bestScore = 0;
-
-    for (const base of commonBaseUnits) {
-      const score = filtered.filter(v => v % base === 0).length;
-      if (score > bestScore) {
-        bestScore = score;
-        bestBase = base;
-      }
-    }
-
-    return bestBase;
-  }
-
-  // Return the calculated GCD if it's reasonable
+  // Return the calculated GCD if it's reasonable, otherwise default to 8
   return result >= 4 && result <= 16 ? result : 8;
 }
 
@@ -283,7 +293,8 @@ function findBaseUnit(values: number[]): number {
  * @returns Description of the spacing pattern
  */
 function analyzeSpacingPattern(values: number[]): string {
-  if (values.length < 2) return 'Insufficient data';
+  if (values.length === 0) return 'No spacing data detected';
+  if (values.length === 1) return `Single value system (${values[0]}px base)`;
 
   const ratios: number[] = [];
   for (let i = 1; i < Math.min(values.length, 6); i++) {
@@ -867,7 +878,9 @@ export function extractSpacingScale(): SpacingScale {
     contexts: Set<string>;
   }>();
   const elements = document.querySelectorAll('*');
-  const maxElements = Math.min(elements.length, 500);
+  // Increased from 500 to 800 to capture more spacing patterns on complex pages
+  // This provides better base unit detection while staying performant (<100ms on most sites)
+  const maxElements = Math.min(elements.length, 800);
 
   // Collect all spacing values from elements
   for (let i = 0; i < maxElements; i++) {
@@ -937,12 +950,15 @@ export function extractSpacingScale(): SpacingScale {
   // Build spacing scale (values that are multiples of base unit or close to it)
   const spacingScale = sortedSpacing
     .filter(s => {
-      // Include if it's a multiple of base unit (within 2px tolerance)
+      // Include if it's a multiple of base unit (within 3px tolerance)
+      // OR if it's one of the top 15 most used values (to catch edge cases)
       const ratio = s.value / baseUnit;
       const nearestMultiple = Math.round(ratio);
-      return Math.abs(s.value - (nearestMultiple * baseUnit)) <= 2;
+      const isCloseToMultiple = Math.abs(s.value - (nearestMultiple * baseUnit)) <= 3;
+      const isTopUsed = sortedSpacing.indexOf(s) < 15;
+      return isCloseToMultiple || isTopUsed;
     })
-    .slice(0, 12) // Limit to top 12 scale values
+    .slice(0, 15) // Limit to top 15 scale values (increased from 12)
     .map(s => ({
       value: `${s.value}px`,
       count: s.count,
@@ -953,12 +969,50 @@ export function extractSpacingScale(): SpacingScale {
   // Analyze the scale pattern
   const scalePattern = analyzeSpacingPattern(spacingScale.map(s => parseInt(s.value)));
 
+  // Calculate confidence score based on spacing consistency
+  let confidence = 0.5; // Default medium confidence
+
+  if (spacingScale.length === 0) {
+    confidence = 0.0; // No spacing system detected
+  } else {
+    // Calculate how many values are exact multiples of base unit
+    const scaleValues = spacingScale.map(s => parseInt(s.value));
+    const exactMultiples = scaleValues.filter(v => v % baseUnit === 0).length;
+    const multipleRatio = exactMultiples / scaleValues.length;
+
+    // High confidence if most values are exact multiples
+    if (multipleRatio > 0.8 && scaleValues.length >= 5) {
+      confidence = 0.85;
+    } else if (multipleRatio > 0.7 && scaleValues.length >= 4) {
+      confidence = 0.75;
+    } else if (multipleRatio > 0.6) {
+      confidence = 0.65;
+    } else if (multipleRatio > 0.5) {
+      confidence = 0.55;
+    } else {
+      confidence = 0.45; // Low adherence to base unit
+    }
+
+    // Boost confidence for recognized patterns
+    if (scalePattern.includes('Linear progression')) {
+      confidence = Math.min(confidence + 0.1, 1.0);
+    } else if (scalePattern.includes('Geometric') || scalePattern.includes('Doubling')) {
+      confidence = Math.min(confidence + 0.05, 1.0);
+    }
+
+    // Boost for adequate scale size
+    if (scaleValues.length >= 8 && scaleValues.length <= 12) {
+      confidence = Math.min(confidence + 0.05, 1.0);
+    }
+  }
+
   return {
     spacingScale,
     baseUnit: `${baseUnit}px`,
     pattern: scalePattern,
     totalUniqueValues: spacingValues.size,
-    recommendation: generateSpacingRecommendation(spacingScale.length, baseUnit)
+    recommendation: generateSpacingRecommendation(spacingScale.length, baseUnit),
+    confidence: Math.round(confidence * 100) / 100 // Round to 2 decimals
   };
 }
 

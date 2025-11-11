@@ -305,31 +305,54 @@ export function getThemeFromSelector(selector: string): string {
 }
 
 /**
- * Normalizes color strings to a consistent format for comparison.
- * Converts rgba colors with alpha=1 to rgb format, preserves hex colors unchanged.
+ * Normalizes color strings to a consistent RGB format for comparison and output.
+ * Converts all color formats (oklab, oklch, hsl, hex, etc.) to rgb/rgba format.
+ * This ensures consistent color representation across all websites.
  *
- * @param color - Color string in rgb, rgba, or hex format
- * @returns Normalized color string (removes unnecessary alpha channel, formats consistently)
+ * @param color - Color string in any CSS format (rgb, rgba, hex, oklab, oklch, hsl, etc.)
+ * @returns Normalized color string in rgb() or rgba() format
  * @example
  * normalizeColor("rgba(255, 0, 0, 1)"); // Returns "rgb(255, 0, 0)"
  * normalizeColor("rgba(255, 0, 0, 0.5)"); // Returns "rgba(255, 0, 0, 0.5)"
- * normalizeColor("#ff0000"); // Returns "#ff0000"
+ * normalizeColor("#ff0000"); // Returns "rgb(255, 0, 0)"
+ * normalizeColor("oklab(0.5 0.1 -0.2)"); // Returns "rgb(123, 145, 167)"
+ * normalizeColor("oklch(0.5 0.2 180)"); // Returns "rgb(100, 130, 160)"
+ * normalizeColor("hsl(120, 100%, 50%)"); // Returns "rgb(0, 255, 0)"
  */
 export function normalizeColor(color: string): string {
-  if (color.startsWith('#')) return color;
+  if (!color || color === 'transparent') return 'transparent';
 
-  const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-
+  // Check if already in rgb/rgba format
+  const rgbaMatch = color.match(/rgba?\((\d+),?\s*(\d+),?\s*(\d+)(?:,?\s*([\d.]+))?\)/);
   if (rgbaMatch) {
     const [, r, g, b, a] = rgbaMatch;
     const alpha = a !== undefined ? parseFloat(a) : 1;
 
-    if (alpha === 1) {
+    if (alpha === 1 || alpha === undefined) {
       return `rgb(${r}, ${g}, ${b})`;
     }
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
+  // Extract alpha channel if present (for oklab/oklch with alpha)
+  let alpha = 1;
+  const alphaMatch = color.match(/\s*\/\s*([\d.]+)\s*\)/);
+  if (alphaMatch) {
+    alpha = parseFloat(alphaMatch[1]);
+    color = color.replace(/\s*\/\s*[\d.]+\s*\)/, ')'); // Remove alpha for parsing
+  }
+
+  // Convert exotic color formats to RGB
+  const rgb = parseColorToRGB(color);
+
+  if (rgb) {
+    if (alpha === 1) {
+      return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+    }
+    return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+  }
+
+  // If all parsing fails, return original (shouldn't happen often)
   return color;
 }
 

@@ -226,9 +226,11 @@ export function extractGradients(): Gradient[] {
  * - Scans all accessible stylesheets for CSSMediaRule instances
  * - Extracts both min-width and max-width breakpoint values
  * - Tracks how many media queries use each breakpoint
+ * - **CLUSTERS nearby breakpoints** (within 50px) to reduce noise
  * - Identifies standard framework breakpoints (Tailwind, Bootstrap)
  * - Automatically labels recognized breakpoints with framework names
  * - Handles cross-origin stylesheets gracefully (skips with try-catch)
+ * - Limits output to top 10 most significant breakpoints
  *
  * Recognized Framework Breakpoints:
  * - Tailwind: 640px (sm), 768px (md), 1024px (lg), 1280px (xl), 1536px (2xl)
@@ -313,28 +315,58 @@ export function extractResponsiveBreakpoints(): ResponsiveBreakpoints {
     }))
     .sort((a, b) => a.width - b.width);
 
+  // CLUSTER nearby breakpoints to reduce noise
+  // Group breakpoints within 50px of each other and merge them
+  const CLUSTER_THRESHOLD = 50; // px
+  const clusteredBreakpoints: typeof sortedBreakpoints = [];
+
+  for (const bp of sortedBreakpoints) {
+    // Check if we can merge with the last cluster
+    const lastCluster = clusteredBreakpoints[clusteredBreakpoints.length - 1];
+
+    if (lastCluster && Math.abs(bp.width - lastCluster.width) <= CLUSTER_THRESHOLD && bp.type === lastCluster.type) {
+      // Merge into existing cluster
+      // Keep the breakpoint with more queries (more significant)
+      if (bp.queryCount > lastCluster.queryCount) {
+        lastCluster.width = bp.width;
+        lastCluster.value = bp.value;
+      }
+      lastCluster.queryCount += bp.queryCount;
+    } else {
+      // Start new cluster
+      clusteredBreakpoints.push({ ...bp });
+    }
+  }
+
   // Infer common breakpoint names
-  const namedBreakpoints = sortedBreakpoints.map(bp => {
+  const namedBreakpoints = clusteredBreakpoints.map(bp => {
     let name = 'custom';
 
-    // Common breakpoint standards
-    if (bp.width === 640) name = 'sm (Tailwind)';
-    else if (bp.width === 768) name = 'md (Tailwind/Bootstrap)';
-    else if (bp.width === 1024) name = 'lg (Tailwind)';
-    else if (bp.width === 1280) name = 'xl (Tailwind)';
-    else if (bp.width === 1536) name = '2xl (Tailwind)';
-    else if (bp.width === 576) name = 'sm (Bootstrap)';
-    else if (bp.width === 992) name = 'lg (Bootstrap)';
-    else if (bp.width === 1200) name = 'xl (Bootstrap)';
-    else if (bp.width === 1400) name = 'xxl (Bootstrap)';
+    // Common breakpoint standards (with tolerance for clustering)
+    const width = bp.width;
+    if (width >= 635 && width <= 645) name = 'sm (Tailwind)';
+    else if (width >= 763 && width <= 773) name = 'md (Tailwind/Bootstrap)';
+    else if (width >= 1019 && width <= 1029) name = 'lg (Tailwind)';
+    else if (width >= 1275 && width <= 1285) name = 'xl (Tailwind)';
+    else if (width >= 1531 && width <= 1541) name = '2xl (Tailwind)';
+    else if (width >= 571 && width <= 581) name = 'sm (Bootstrap)';
+    else if (width >= 987 && width <= 997) name = 'lg (Bootstrap)';
+    else if (width >= 1195 && width <= 1205) name = 'xl (Bootstrap)';
+    else if (width >= 1395 && width <= 1405) name = 'xxl (Bootstrap)';
 
     return { ...bp, name };
   });
 
+  // Sort by significance (query count) and limit to top 10
+  const topBreakpoints = namedBreakpoints
+    .sort((a, b) => b.queryCount - a.queryCount)
+    .slice(0, 10)
+    .sort((a, b) => a.width - b.width); // Re-sort by width for readability
+
   return {
-    breakpoints: namedBreakpoints,
+    breakpoints: topBreakpoints,
     totalMediaQueries: mediaQueries.length,
-    uniqueBreakpoints: namedBreakpoints.length
+    uniqueBreakpoints: topBreakpoints.length
   };
 }
 

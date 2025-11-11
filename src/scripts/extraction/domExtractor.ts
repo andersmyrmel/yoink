@@ -1,5 +1,16 @@
 import { isVisible, isInViewport, shouldSkipElement, shouldPruneNode } from '../utils/domFilters';
+import { normalizeColor } from '../utils/styleHelpers';
 import type { DOMNode, DOMNodeStyles, DOMTreeExtraction } from '../types/extraction';
+
+// DOM Tree extraction constants
+const MAX_TREE_NODES = 500; // Maximum nodes to keep tree readable for AI
+const DEPTH_INITIAL = 8;     // Initial depth attempt for tree extraction
+const DEPTH_MEDIUM = 6;      // Reduced depth if tree is too large
+const DEPTH_SMALL = 5;       // Further reduced depth for very large trees
+const CHILDREN_INITIAL = 12; // Initial max children per node
+const CHILDREN_MEDIUM = 10;  // Reduced children count for medium trees
+const CHILDREN_SMALL = 8;    // Further reduced for small depth trees
+const VIEWPORT_FILTER_DEPTH = 5; // Depth at which viewport filtering begins
 
 /**
  * Recursively extracts a DOM node and its children into a structured format.
@@ -28,8 +39,8 @@ export function extractNode(el: Element, depth: number, maxDepth: number, maxChi
     return null;
   }
 
-  // After depth 8, only process viewport elements for performance
-  if (depth > 8 && !isInViewport(el)) {
+  // After reaching viewport filter depth, only process viewport elements for performance
+  if (depth > VIEWPORT_FILTER_DEPTH && !isInViewport(el)) {
     return null;
   }
 
@@ -148,7 +159,8 @@ export function extractNode(el: Element, depth: number, maxDepth: number, maxChi
   // Visual styles
   const bgColor = computed.backgroundColor;
   if (bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
-    styles.background = bgColor;
+    // Normalize color to RGB format
+    styles.background = normalizeColor(bgColor);
   }
 
   if (computed.borderRadius !== '0px') styles.borderRadius = computed.borderRadius;
@@ -161,7 +173,10 @@ export function extractNode(el: Element, depth: number, maxDepth: number, maxChi
 
   // Typography (for text-heavy elements)
   if (['button', 'a', 'span', 'p', 'label', 'input', 'textarea'].includes(tagName)) {
-    if (computed.color !== 'rgb(0, 0, 0)') styles.color = computed.color;
+    if (computed.color !== 'rgb(0, 0, 0)') {
+      // Normalize color to RGB format
+      styles.color = normalizeColor(computed.color);
+    }
     if (computed.fontSize !== '16px') styles.fontSize = computed.fontSize;
     if (computed.fontWeight !== '400') styles.fontWeight = computed.fontWeight;
   }
@@ -227,17 +242,40 @@ export function extractNode(el: Element, depth: number, maxDepth: number, maxChi
 
   // Recursively extract children
   const children: DOMNode[] = [];
-  const childElements = Array.from(el.children).slice(0, maxChildren);
 
-  for (const child of childElements) {
-    const childNode = extractNode(child, depth + 1, maxDepth, maxChildren);
-    if (childNode && !shouldPruneNode(childNode)) {
-      children.push(childNode);
+  // Special handling for SVG elements - collapse their internals
+  if (tagName === 'svg') {
+    // Don't traverse SVG internals (path, mask, defs, etc.)
+    // Just note that it's an SVG icon
+    const childCount = el.children.length;
+    if (childCount > 0) {
+      node.svgChildren = childCount;
+      node.note = `SVG icon with ${childCount} internal elements`;
     }
-  }
+  } else {
+    // Normal element - process children
+    const childElements = Array.from(el.children).slice(0, maxChildren);
 
-  if (children.length > 0) {
-    node.children = children;
+    for (const child of childElements) {
+      // Skip SVG internal elements at any level
+      const childTag = child.tagName.toLowerCase();
+      const svgInternals = ['path', 'mask', 'defs', 'g', 'clippath', 'lineargradient',
+                            'radialgradient', 'stop', 'rect', 'circle', 'ellipse',
+                            'polygon', 'polyline', 'line', 'use', 'symbol', 'pattern'];
+
+      if (svgInternals.includes(childTag)) {
+        continue; // Skip SVG internals completely
+      }
+
+      const childNode = extractNode(child, depth + 1, maxDepth, maxChildren);
+      if (childNode && !shouldPruneNode(childNode)) {
+        children.push(childNode);
+      }
+    }
+
+    if (children.length > 0) {
+      node.children = children;
+    }
   }
 
   // Final check: Don't return prunable nodes unless they have children
@@ -249,6 +287,26 @@ export function extractNode(el: Element, depth: number, maxDepth: number, maxChi
 }
 
 /**
+ * Counts the total number of nodes in a DOM tree.
+ *
+ * Recursively traverses the tree to count all nodes including children.
+ * Used for adaptive depth limiting based on tree complexity.
+ *
+ * @param node - The DOM node to count from
+ * @returns Total number of nodes in the subtree
+ */
+function countNodes(node: DOMNode | null): number {
+  if (!node) return 0;
+  let count = 1;
+  if (node.children) {
+    for (const child of node.children) {
+      count += countNodes(child);
+    }
+  }
+  return count;
+}
+
+/**
  * Extracts the complete DOM tree from the current page.
  *
  * This function is the main entry point for DOM extraction. It traverses the entire
@@ -257,15 +315,21 @@ export function extractNode(el: Element, depth: number, maxDepth: number, maxChi
  * styles, layout patterns, and component structures optimized for AI analysis.
  *
  * The function applies performance optimizations including:
- * - Depth limiting (max 12 levels deep)
- * - Children limiting (max 15 children per node)
- * - Viewport-based filtering for deep nodes (depth > 8)
+ * - Adaptive depth limiting (8-10 levels based on tree size)
+ * - Children limiting (max 12 children per node)
+ * - Viewport-based filtering for deep nodes (depth > 6)
  * - Automatic pruning of invisible and non-semantic elements
+ * - Tree size limiting (max 500 nodes for readability)
+ *
+ * If the initial extraction produces a tree that's too large (>500 nodes),
+ * it will retry with reduced depth to ensure the output remains readable.
  *
  * @returns Complete DOM tree extraction with page metadata including:
  *   - url: Current page URL
  *   - viewport: Window dimensions (width and height)
  *   - tree: Root DOMNode representing the body element and all descendants
+ *   - nodeCount: Total number of nodes in the extracted tree
+ *   - depthUsed: The maximum depth used for this extraction
  *
  * @example
  * ```typescript
@@ -273,16 +337,33 @@ export function extractNode(el: Element, depth: number, maxDepth: number, maxChi
  * const extraction = extractDOMTree();
  * console.log(`Page: ${extraction.url}`);
  * console.log(`Viewport: ${extraction.viewport.width}x${extraction.viewport.height}`);
- * console.log(`Root element: ${extraction.tree?.tag}`);
+ * console.log(`Extracted ${extraction.nodeCount} nodes at depth ${extraction.depthUsed}`);
  * ```
  */
 export function extractDOMTree(): DOMTreeExtraction {
-  const maxDepth = 12; // Increased depth for better content coverage
-  const maxChildren = 15; // Increased children limit per node
-
-  // Start from body or main content area
   const body = document.body;
-  const tree = extractNode(body, 0, maxDepth, maxChildren);
+
+  // Try initial extraction with standard depth
+  let maxDepth = DEPTH_INITIAL;
+  let maxChildren = CHILDREN_INITIAL;
+  let tree = extractNode(body, 0, maxDepth, maxChildren);
+  let nodeCount = countNodes(tree);
+
+  // If tree is too large, reduce depth and children
+  if (nodeCount > MAX_TREE_NODES) {
+    maxDepth = DEPTH_MEDIUM;
+    maxChildren = CHILDREN_MEDIUM;
+    tree = extractNode(body, 0, maxDepth, maxChildren);
+    nodeCount = countNodes(tree);
+  }
+
+  // If still too large, reduce again
+  if (nodeCount > MAX_TREE_NODES) {
+    maxDepth = DEPTH_SMALL;
+    maxChildren = CHILDREN_SMALL;
+    tree = extractNode(body, 0, maxDepth, maxChildren);
+    nodeCount = countNodes(tree);
+  }
 
   return {
     url: window.location.href,
@@ -290,6 +371,8 @@ export function extractDOMTree(): DOMTreeExtraction {
       width: window.innerWidth,
       height: window.innerHeight
     },
-    tree
+    tree,
+    nodeCount,
+    depthUsed: maxDepth
   };
 }

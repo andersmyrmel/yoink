@@ -7,6 +7,7 @@
  */
 
 import { ComponentExtraction } from '../../types/extraction';
+import { normalizeAllColors } from '../../utils/componentHelpers';
 
 // Import form component extractors
 import {
@@ -92,7 +93,7 @@ import {
  * - Custom component implementations are detected alongside native elements
  */
 export function extractComponents(): ComponentExtraction {
-  return {
+  const components = {
     // Interactive form components
     buttons: extractButtons(),
     inputs: extractInputs(),
@@ -128,4 +129,7 @@ export function extractComponents(): ComponentExtraction {
     progress: extractProgress(),
     dividers: extractDividers()
   };
+
+  // Normalize all colors in all components to RGB format
+  return normalizeAllColors(components) as ComponentExtraction;
 }

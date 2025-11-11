@@ -66,6 +66,31 @@ import {
   extractScrollbarStyles
 } from './extraction/miscExtractors';
 
+/**
+ * Waits for web fonts to finish loading before extracting styles.
+ * This ensures font-family values reflect the actual loaded fonts, not fallbacks.
+ * Times out after 2 seconds to prevent blocking extraction indefinitely.
+ *
+ * @returns Promise that resolves when fonts are loaded or after timeout
+ */
+async function waitForFontsLoaded(): Promise<void> {
+  if (!document.fonts || !document.fonts.ready) {
+    // Browser doesn't support Font Loading API, continue immediately
+    return Promise.resolve();
+  }
+
+  try {
+    // Wait for fonts with 2 second timeout
+    await Promise.race([
+      document.fonts.ready,
+      new Promise(resolve => setTimeout(resolve, 2000))
+    ]);
+  } catch (error) {
+    // Font loading failed, continue anyway
+    console.warn('Error waiting for fonts:', error);
+  }
+}
+
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((
   request: ScanStylesRequest,
@@ -73,15 +98,28 @@ chrome.runtime.onMessage.addListener((
   sendResponse: (response: ScanResponse) => void
 ): boolean => {
   if (request.action === 'scanStyles') {
-    try {
-      const styleData = extractStyles(request.includeComponents);
-      sendResponse({ success: true, data: styleData });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      sendResponse({ success: false, error: errorMessage });
-    }
+    // Wait for fonts to load before extraction
+    waitForFontsLoaded().then(() => {
+      try {
+        const styleData = extractStyles(request.includeComponents);
+        sendResponse({ success: true, data: styleData });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        sendResponse({ success: false, error: errorMessage });
+      }
+    }).catch(error => {
+      // If font loading fails, continue anyway
+      console.warn('Font loading check failed, continuing with extraction:', error);
+      try {
+        const styleData = extractStyles(request.includeComponents);
+        sendResponse({ success: true, data: styleData });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        sendResponse({ success: false, error: errorMessage });
+      }
+    });
   }
-  return true;
+  return true; // Keep message channel open for async response
 });
 
 /**
@@ -116,6 +154,7 @@ function extractStyles(includeComponents: boolean = true): StyleExtraction {
     cssVariables,
     colors: colorData.colors,
     colorUsage: colorData.usage,
+    colorExtraction: colorData,
     fonts: extractFonts(),
     borderRadius: extractBorderRadius(),
     shadows: extractShadows(),

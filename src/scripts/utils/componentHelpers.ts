@@ -1,4 +1,5 @@
-import { StateStyles } from '../types/extraction';
+import { StateStyles, ComponentStyles } from '../types/extraction';
+import { normalizeColor } from './styleHelpers';
 
 /**
  * Creates a unique signature for an element based on key style properties.
@@ -29,6 +30,99 @@ export function createStyleSignature(element: HTMLElement): string {
   const paddingTop = Math.round(parseInt(styles.paddingTop) / 16) * 16;
 
   return `${styles.backgroundColor}-${styles.color}-${styles.borderRadius}-${paddingLeft}px-${paddingTop}px-${styles.fontSize}-${styles.fontWeight}`;
+}
+
+/**
+ * Normalizes colors in a ComponentStyles object to RGB format.
+ * Converts oklab, oklch, hsl, and other exotic color formats to standard rgb/rgba.
+ *
+ * @param styles - Component styles object with potentially exotic color formats
+ * @returns New ComponentStyles object with all colors normalized to RGB
+ *
+ * @example
+ * ```typescript
+ * const styles = {
+ *   background: 'oklab(0.5 0.1 -0.2)',
+ *   color: 'hsl(220, 100%, 50%)',
+ *   border: '1px solid oklch(0.6 0.2 30)'
+ * };
+ * const normalized = normalizeComponentStyles(styles);
+ * // Returns: {
+ * //   background: 'rgb(100, 130, 160)',
+ * //   color: 'rgb(0, 102, 255)',
+ * //   border: '1px solid rgb(150, 180, 120)'
+ * // }
+ * ```
+ */
+export function normalizeComponentStyles(styles: ComponentStyles): ComponentStyles {
+  const normalized = { ...styles };
+
+  // Normalize color properties
+  if (normalized.background) {
+    normalized.background = normalizeColor(normalized.background);
+  }
+  if (normalized.color) {
+    normalized.color = normalizeColor(normalized.color);
+  }
+
+  // Normalize colors in border shorthand (e.g., "1px solid oklch(...)")
+  if (normalized.border && (normalized.border.includes('oklab') || normalized.border.includes('oklch') || normalized.border.includes('hsl'))) {
+    // Extract color from border shorthand and normalize it
+    const borderParts = normalized.border.split(' ');
+    const normalizedParts = borderParts.map(part => {
+      if (part.includes('oklab') || part.includes('oklch') || part.includes('hsl') || part.includes('rgb')) {
+        return normalizeColor(part);
+      }
+      return part;
+    });
+    normalized.border = normalizedParts.join(' ');
+  }
+
+  // Normalize borderTop, borderBottom for dividers
+  if (normalized.borderTop && (normalized.borderTop.includes('oklab') || normalized.borderTop.includes('oklch') || normalized.borderTop.includes('hsl'))) {
+    const parts = normalized.borderTop.split(' ');
+    normalized.borderTop = parts.map(p => p.includes('oklab') || p.includes('oklch') || p.includes('hsl') ? normalizeColor(p) : p).join(' ');
+  }
+  if (normalized.borderBottom && (normalized.borderBottom.includes('oklab') || normalized.borderBottom.includes('oklch') || normalized.borderBottom.includes('hsl'))) {
+    const parts = normalized.borderBottom.split(' ');
+    normalized.borderBottom = parts.map(p => p.includes('oklab') || p.includes('oklch') || p.includes('hsl') ? normalizeColor(p) : p).join(' ');
+  }
+
+  return normalized;
+}
+
+/**
+ * Recursively normalizes all color values in any object structure.
+ * Useful for normalizing entire component variant objects with nested styles.
+ *
+ * @param obj - Any object that may contain color values
+ * @returns New object with all colors normalized to RGB
+ */
+export function normalizeAllColors(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+
+  if (typeof obj === 'string') {
+    // Check if this looks like a color value
+    if (obj.includes('oklab') || obj.includes('oklch') || obj.includes('hsl') ||
+        obj.startsWith('rgb') || obj.startsWith('#')) {
+      return normalizeColor(obj);
+    }
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => normalizeAllColors(item));
+  }
+
+  if (typeof obj === 'object') {
+    const normalized: any = {};
+    for (const key in obj) {
+      normalized[key] = normalizeAllColors(obj[key]);
+    }
+    return normalized;
+  }
+
+  return obj;
 }
 
 /**
@@ -74,7 +168,7 @@ export function createStyleSignature(element: HTMLElement): string {
 export function extractStateStyles(element: HTMLElement): StateStyles | undefined {
   const states: StateStyles = {};
 
-  // Try to get state styles from CSS rules matching this element
+  // Strategy 1: Try to get state styles from CSS rules matching this element
   try {
     const matchingRules = getMatchingCSSRules(element);
 
@@ -91,6 +185,7 @@ export function extractStateStyles(element: HTMLElement): StateStyles | undefine
         if (style.transform) states.hover.transform = style.transform;
         if (style.boxShadow) states.hover.boxShadow = style.boxShadow;
         if (style.borderColor) states.hover.borderColor = style.borderColor;
+        if (style.filter) states.hover.filter = style.filter;
       }
 
       // Check for :focus pseudo-class
@@ -100,6 +195,7 @@ export function extractStateStyles(element: HTMLElement): StateStyles | undefine
         if (style.outline) states.focus.outline = style.outline;
         if (style.boxShadow) states.focus.boxShadow = style.boxShadow;
         if (style.borderColor) states.focus.borderColor = style.borderColor;
+        if (style.backgroundColor) states.focus.backgroundColor = style.backgroundColor;
       }
 
       // Check for :active pseudo-class
@@ -109,6 +205,7 @@ export function extractStateStyles(element: HTMLElement): StateStyles | undefine
         if (style.backgroundColor) states.active.backgroundColor = style.backgroundColor;
         if (style.transform) states.active.transform = style.transform;
         if (style.boxShadow) states.active.boxShadow = style.boxShadow;
+        if (style.opacity) states.active.opacity = style.opacity;
       }
 
       // Check for :disabled pseudo-class
@@ -121,30 +218,84 @@ export function extractStateStyles(element: HTMLElement): StateStyles | undefine
       }
     });
   } catch (_e) {
-    // Fallback: check for Tailwind-style utility classes
-    const classes = Array.from(element.classList);
+    // CSS rules inaccessible - continue with other strategies
+  }
 
-    // Extract hover states
-    const hoverClasses = classes.filter(c => c.includes('hover:'));
-    if (hoverClasses.length > 0) {
-      states.hover = { utilityClasses: hoverClasses };
-    }
+  // Strategy 2: Check for Tailwind/utility framework classes
+  const classes = Array.from(element.classList);
 
-    // Extract focus states
-    const focusClasses = classes.filter(c => c.includes('focus:'));
-    if (focusClasses.length > 0) {
-      states.focus = { utilityClasses: focusClasses };
-    }
+  // Extract hover states from utility classes
+  const hoverClasses = classes.filter(c => c.includes('hover:'));
+  if (hoverClasses.length > 0) {
+    if (!states.hover) states.hover = {};
+    states.hover.utilityClasses = hoverClasses;
+  }
 
-    // Extract disabled states
-    const disabledClasses = classes.filter(c => c.includes('disabled:'));
-    if (disabledClasses.length > 0) {
-      states.disabled = { utilityClasses: disabledClasses };
-    }
+  // Extract focus states from utility classes
+  const focusClasses = classes.filter(c => c.includes('focus:'));
+  if (focusClasses.length > 0) {
+    if (!states.focus) states.focus = {};
+    states.focus.utilityClasses = focusClasses;
+  }
+
+  // Extract active states from utility classes
+  const activeClasses = classes.filter(c => c.includes('active:'));
+  if (activeClasses.length > 0) {
+    if (!states.active) states.active = {};
+    states.active.utilityClasses = activeClasses;
+  }
+
+  // Extract disabled states from utility classes
+  const disabledClasses = classes.filter(c => c.includes('disabled:'));
+  if (disabledClasses.length > 0) {
+    if (!states.disabled) states.disabled = {};
+    states.disabled.utilityClasses = disabledClasses;
+  }
+
+  // Strategy 3: Infer common state patterns from computed styles
+  const computedStyle = getComputedStyle(element);
+
+  // Check if element is disabled first
+  const isDisabled = element.hasAttribute('disabled') ||
+                     element.getAttribute('aria-disabled') === 'true' ||
+                     element.classList.contains('disabled');
+
+  // If element has transition properties, it likely has hover states
+  if (computedStyle.transition && computedStyle.transition !== 'all 0s ease 0s' && computedStyle.transition !== 'none') {
+    if (!states.hover) states.hover = {};
+    states.hover.hasTransition = true;
+    states.hover.transition = computedStyle.transition;
+  }
+
+  // If element is interactive (cursor: pointer) and NOT disabled, it likely has hover state
+  if (computedStyle.cursor === 'pointer' && !states.hover && !isDisabled) {
+    states.hover = { inferredInteractive: true };
+  }
+
+  // Strategy 4: Check data attributes that might indicate state styling
+  const dataAttrs = Array.from(element.attributes).filter(attr => attr.name.startsWith('data-'));
+  const stateDataAttrs = dataAttrs.filter(attr =>
+    attr.name.includes('hover') ||
+    attr.name.includes('focus') ||
+    attr.name.includes('active') ||
+    attr.name.includes('disabled')
+  );
+
+  if (stateDataAttrs.length > 0) {
+    stateDataAttrs.forEach(attr => {
+      const stateName = attr.name.includes('hover') ? 'hover' :
+                       attr.name.includes('focus') ? 'focus' :
+                       attr.name.includes('active') ? 'active' : 'disabled';
+
+      if (!states[stateName as keyof StateStyles]) {
+        (states[stateName as keyof StateStyles] as any) = {};
+      }
+      (states[stateName as keyof StateStyles] as any).dataAttribute = attr.value;
+    });
   }
 
   // Check if element is actually disabled
-  if (element.hasAttribute('disabled')) {
+  if (element.hasAttribute('disabled') || element.getAttribute('aria-disabled') === 'true') {
     if (!states.disabled) states.disabled = {};
     states.disabled.isDisabled = true;
   }

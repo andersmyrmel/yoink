@@ -78,7 +78,11 @@ export function extractCSSCustomProperties(): CSSCustomProperties {
   }
 
   filterExtensionVariables(cssVars);
-  return cssVars;
+
+  // Filter to only actually used variables
+  const usedVars = filterToUsedVariables(cssVars);
+
+  return usedVars;
 }
 
 /**
@@ -196,6 +200,129 @@ export function filterExtensionVariables(cssVars: CSSCustomProperties): void {
 }
 
 /**
+ * Priority function for CSS variable semantic importance
+ * Used to rank variables when filtering by importance
+ *
+ * @param name - CSS variable name (with or without -- prefix)
+ * @returns Priority score (lower = more important)
+ */
+const getCSSVariablePriority = (name: string): number => {
+  const lower = name.toLowerCase();
+  if (lower.includes('primary') || lower.includes('secondary')) return 1;
+  if (lower.includes('color') || lower.includes('text') || lower.includes('bg')) return 2;
+  if (lower.includes('spacing') || lower.includes('gap') || lower.includes('padding')) return 3;
+  if (lower.includes('font') || lower.includes('size')) return 4;
+  if (lower.includes('shadow') || lower.includes('elevation')) return 5;
+  if (lower.includes('radius') || lower.includes('border')) return 6;
+  return 10;
+};
+
+/**
+ * Fallback function to return top N CSS variables by semantic priority
+ * Used when var() usage detection fails or no elements are available
+ *
+ * @param cssVars - All CSS variables
+ * @param limit - Maximum number of variables to return
+ * @returns Limited set of prioritized CSS variables
+ */
+function fallbackToSemanticPriority(cssVars: CSSCustomProperties, limit: number): CSSCustomProperties {
+  const priorityVars: CSSCustomProperties = {};
+  const allVars = Object.keys(cssVars);
+
+  const sorted = allVars.sort((a, b) => getCSSVariablePriority(a) - getCSSVariablePriority(b));
+  const limited = sorted.slice(0, limit);
+
+  for (const varName of limited) {
+    priorityVars[varName] = cssVars[varName];
+  }
+
+  return priorityVars;
+}
+
+/**
+ * Pre-compiled regex for extracting CSS variable names from var() references
+ * Pattern matches: var(--variable-name) or var(--variable-name, fallback)
+ */
+const CSS_VAR_PATTERN = /var\((--[a-z0-9-_]+)/gi;
+
+/**
+ * Filters CSS variables to only those actually used in the page
+ *
+ * Scans computed styles of visible elements to find which CSS variables
+ * are actually referenced via var(--name). This dramatically reduces the
+ * output size by excluding thousands of unused generated variables.
+ *
+ * @param {CSSCustomProperties} cssVars - All defined CSS variables
+ * @returns {CSSCustomProperties} Only the CSS variables actually used
+ */
+function filterToUsedVariables(cssVars: CSSCustomProperties): CSSCustomProperties {
+  const usedVarNames = new Set<string>();
+  const elements = getCachedElements();
+
+  // Defensive check: if no elements available, fall back to semantic priority
+  if (elements.length === 0) {
+    return fallbackToSemanticPriority(cssVars, 50);
+  }
+
+  const maxElements = Math.min(elements.length, 500); // Sample elements
+
+  // Check common properties that often use CSS variables
+  const propsToCheck = [
+    'color', 'backgroundColor', 'borderColor', 'fill', 'stroke',
+    'boxShadow', 'textShadow', 'fontFamily', 'fontSize', 'lineHeight',
+    'padding', 'margin', 'gap', 'borderRadius', 'width', 'height'
+  ];
+
+  // Scan computed styles for var() references
+  for (let i = 0; i < maxElements; i++) {
+    const element = elements[i];
+    const styles = getCachedComputedStyle(element);
+
+    for (const prop of propsToCheck) {
+      const value = styles.getPropertyValue(prop);
+      if (value && value.includes('var(--')) {
+        // Extract variable names from var(--name) or var(--name, fallback)
+        // Reset regex lastIndex for global flag
+        CSS_VAR_PATTERN.lastIndex = 0;
+        const matches = value.matchAll(CSS_VAR_PATTERN);
+        for (const match of matches) {
+          usedVarNames.add(match[1]);
+        }
+      }
+    }
+  }
+
+  // If no variables found in computed styles, return top 50 by name priority
+  if (usedVarNames.size === 0) {
+    return fallbackToSemanticPriority(cssVars, 50);
+  }
+
+  // Return only used variables
+  const usedVars: CSSCustomProperties = {};
+  for (const varName of usedVarNames) {
+    if (cssVars[varName]) {
+      usedVars[varName] = cssVars[varName];
+    }
+  }
+
+  // Limit to 50 max even if more are used (for extremely variable-heavy sites)
+  // Prioritize by semantic importance (50 is optimal for AI comprehension)
+  if (Object.keys(usedVars).length > 50) {
+    const limited: CSSCustomProperties = {};
+
+    const sorted = Object.keys(usedVars).sort((a, b) => getCSSVariablePriority(a) - getCSSVariablePriority(b));
+    const topVars = sorted.slice(0, 50);
+
+    for (const varName of topVars) {
+      limited[varName] = usedVars[varName];
+    }
+    return limited;
+  }
+
+  return usedVars;
+}
+
+/**
  * Recursively parse CSS rules to find custom properties
  *
  * Traverses CSS rules including nested rules (@media, @supports) and extracts
@@ -310,9 +437,56 @@ export function extractColors(): ColorExtraction {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 20);
 
+  // Calculate confidence score based on color system consistency
+  let confidence = 0.5; // Default medium confidence
+
+  if (sortedColors.length === 0) {
+    confidence = 0.0; // No colors detected
+  } else {
+    const totalUniqueColors = colorUsage.size;
+
+    // Get CSS variables to check if colors are systematized
+    const cssVars = extractCSSCustomProperties();
+    const colorVarCount = Object.keys(cssVars).filter(name =>
+      name.toLowerCase().includes('color') ||
+      name.toLowerCase().includes('bg') ||
+      name.toLowerCase().includes('text')
+    ).length;
+
+    // High confidence if using CSS variables for colors
+    if (colorVarCount >= 10) {
+      confidence = 0.85;
+    } else if (colorVarCount >= 5) {
+      confidence = 0.75;
+    } else {
+      // Confidence based on color palette size (smaller = more consistent)
+      if (totalUniqueColors <= 15) {
+        confidence = 0.80; // Very consistent palette
+      } else if (totalUniqueColors <= 30) {
+        confidence = 0.70; // Moderate palette
+      } else if (totalUniqueColors <= 50) {
+        confidence = 0.60; // Larger palette
+      } else {
+        confidence = 0.45; // Very large/inconsistent palette
+      }
+    }
+
+    // Boost confidence if top colors dominate usage
+    if (sortedColors.length > 0) {
+      const topColorUsage = sortedColors[0][1];
+      const totalUsage = Array.from(colorUsage.values()).reduce((sum, count) => sum + count, 0);
+      const dominance = topColorUsage / totalUsage;
+
+      if (dominance > 0.3) {
+        confidence = Math.min(confidence + 0.1, 1.0);
+      }
+    }
+  }
+
   return {
     colors: sortedColors.map(([color]) => color),
-    usage: Object.fromEntries(sortedColors)
+    usage: Object.fromEntries(sortedColors),
+    confidence: Math.round(confidence * 100) / 100 // Round to 2 decimals
   };
 }
 
@@ -379,17 +553,46 @@ export function extractBorderRadius(): string[] {
  */
 export function extractShadows(): ShadowSystem {
   const shadowUsage = new Map<string, number>();
-  const elements = getCachedElements();
-  const maxElements = Math.min(elements.length, 500);
+
+  // Target elements that commonly have shadows
+  const shadowSelectors = [
+    '[class*="card"]', '[class*="modal"]', '[class*="dialog"]', '[class*="popup"]',
+    '[class*="menu"]', '[class*="dropdown"]', '[class*="tooltip"]', '[class*="popover"]',
+    '[class*="panel"]', '[class*="sheet"]', '[class*="paper"]', '[class*="surface"]',
+    'button', 'input', 'select', 'textarea',
+    'img', 'figure', 'article',
+    'header', 'footer', 'aside', 'nav', 'section',
+    '[role="dialog"]', '[role="menu"]', '[role="tooltip"]'
+  ];
+
+  const shadowElements = document.querySelectorAll(shadowSelectors.join(', '));
+  const maxElements = Math.min(shadowElements.length, 1000); // Increased from 500
 
   // Collect all shadows with usage counts
   for (let i = 0; i < maxElements; i++) {
-    const element = elements[i];
+    const element = shadowElements[i];
     const styles = getCachedComputedStyle(element);
     const boxShadow = styles.boxShadow;
 
     if (boxShadow && boxShadow !== 'none') {
       shadowUsage.set(boxShadow, (shadowUsage.get(boxShadow) || 0) + 1);
+    }
+
+    // Also check ::before and ::after pseudo-elements
+    try {
+      const beforeStyles = window.getComputedStyle(element, '::before');
+      const beforeShadow = beforeStyles.boxShadow;
+      if (beforeShadow && beforeShadow !== 'none') {
+        shadowUsage.set(beforeShadow, (shadowUsage.get(beforeShadow) || 0) + 1);
+      }
+
+      const afterStyles = window.getComputedStyle(element, '::after');
+      const afterShadow = afterStyles.boxShadow;
+      if (afterShadow && afterShadow !== 'none') {
+        shadowUsage.set(afterShadow, (shadowUsage.get(afterShadow) || 0) + 1);
+      }
+    } catch (e) {
+      // Pseudo-element access might fail on some elements
     }
   }
 

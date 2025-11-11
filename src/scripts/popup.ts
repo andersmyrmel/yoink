@@ -4,6 +4,8 @@
  * Handles the popup UI and YAML generation
  */
 
+import { safeValue, safeNumber } from './utils/yamlHelpers';
+
 const scanButton = document.getElementById('scanBtn') as HTMLButtonElement;
 const copyButton = document.getElementById('copyBtn') as HTMLButtonElement;
 const downloadButton = document.getElementById('downloadBtn') as HTMLButtonElement;
@@ -674,7 +676,7 @@ function generateYAML(styles: any): string {
         yaml += `        border: "${dropdown.styles.border}"\n`;
         yaml += `        border-radius: ${dropdown.styles.borderRadius}\n`;
         yaml += `        box-shadow: "${dropdown.styles.boxShadow}"\n`;
-        yaml += `        min-width: ${dropdown.styles.minWidth}\n`;
+        yaml += `        min-width: ${safeNumber(dropdown.styles.minWidth, 'px', 'auto')}\n`;
       });
     }
 
@@ -1007,8 +1009,8 @@ function generateYAML(styles: any): string {
         yaml += `      styles:\n`;
         yaml += `        background: "${editor.styles.background}"\n`;
         yaml += `        border: "${editor.styles.border}"\n`;
-        yaml += `        padding: ${editor.styles.padding}\n`;
-        yaml += `        min-height: ${editor.styles.minHeight}\n`;
+        yaml += `        padding: ${safeValue(editor.styles.padding, '0px')}\n`;
+        yaml += `        min-height: ${safeNumber(editor.styles.minHeight, 'px', 'auto')}\n`;
       });
     }
 

@@ -10,7 +10,7 @@ import {
   StateStyles,
   ProgressComponent
 } from '../../types/extraction';
-import { extractStateStyles, createStyleSignature } from '../../utils/componentHelpers';
+import { extractStateStyles, createStyleSignature, normalizeComponentStyles } from '../../utils/componentHelpers';
 
 /**
  * Generic component interface for non-button interactive components
@@ -152,6 +152,116 @@ function areButtonsSimilar(btn1: ButtonComponent, btn2: ButtonComponent): boolea
 }
 
 /**
+ * Checks if an element is a navigation link that should not be treated as a button.
+ * Navigation links are excluded because they serve a different purpose than action buttons.
+ *
+ * @param element - Element to check
+ * @returns True if element is a navigation link
+ */
+function isNavigationLink(element: Element): boolean {
+  // Check if inside navigation container
+  if (element.closest('nav, [role="navigation"], header, footer, [class*="menu"], [class*="navbar"]')) {
+    return true;
+  }
+
+  // Check for navigation-specific classes
+  const classes = (element as HTMLElement).className?.toLowerCase() || '';
+  const navClasses = ['nav-link', 'menu-item', 'breadcrumb', 'tab', 'nav-item', 'navbar'];
+  if (navClasses.some(nc => classes.includes(nc))) {
+    return true;
+  }
+
+  // Check if it's a link with actual href (buttons use JS, navigation uses href)
+  if (element.tagName === 'A') {
+    const href = element.getAttribute('href');
+    // Real navigation links have meaningful hrefs (not # or javascript:)
+    if (href && href !== '#' && !href.startsWith('javascript:') && href !== 'void(0)') {
+      // But if it has button classes, it's still a button
+      if (!classes.includes('btn') && !classes.includes('button')) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Checks if an element is an actual button component (not just a clickable element).
+ * This ensures we only capture true button components and not every clickable element.
+ *
+ * @param element - Element to check
+ * @returns True if element should be treated as a button
+ */
+function isActualButton(element: Element): boolean {
+  const tag = element.tagName;
+  const classes = (element as HTMLElement).className?.toLowerCase() || '';
+  const styles = getComputedStyle(element);
+
+  // Rule 1: <button> tags are always buttons
+  if (tag === 'BUTTON') return true;
+
+  // Rule 2: <input type="submit|button"> are always buttons
+  if (tag === 'INPUT') {
+    const type = element.getAttribute('type');
+    if (type === 'submit' || type === 'button') return true;
+  }
+
+  // Rule 3: Elements with role="button" - BUT require button-like styling
+  if (element.getAttribute('role') === 'button') {
+    // Must have either:
+    // - Button classes, OR
+    // - Visual button styling (background + padding + border-radius)
+    const hasButtonClasses = classes.includes('btn') || classes.includes('button');
+
+    const hasBg = styles.backgroundColor !== 'rgba(0, 0, 0, 0)' && styles.backgroundColor !== 'transparent';
+    const hasPadding = parseFloat(styles.paddingLeft) >= 8 && parseFloat(styles.paddingRight) >= 8;
+    const hasRadius = parseFloat(styles.borderRadius) > 0 || parseFloat(styles.borderWidth) > 0;
+    const hasVisualButtonStyling = hasBg && hasPadding && hasRadius;
+
+    // Must have button classes OR clear visual button styling
+    if (!hasButtonClasses && !hasVisualButtonStyling) return false;
+
+    return true;
+  }
+
+  // Rule 4: <a> tags are only buttons if they have button-like characteristics
+  if (tag === 'A') {
+    // Must have button classes (check for space-separated class names, not substrings)
+    const classList = classes.split(' ').filter(c => c.length > 0);
+    const hasButtonClasses = classList.some(c =>
+      c === 'btn' ||
+      c.startsWith('btn-') ||
+      c.endsWith('-btn') ||
+      c === 'button' ||
+      c.startsWith('button-') ||
+      c.endsWith('-button')
+    );
+
+    if (!hasButtonClasses) return false;
+
+    // Must have button-like styling (background or border)
+    const hasBg = styles.backgroundColor !== 'rgba(0, 0, 0, 0)' && styles.backgroundColor !== 'transparent';
+    const hasBorder = parseFloat(styles.borderWidth) > 0;
+    const hasPadding = parseFloat(styles.paddingLeft) > 6 && parseFloat(styles.paddingRight) > 6;
+
+    // Additional check: links with no padding and transparent background are navigation, not buttons
+    if (!hasBg && !hasBorder && !hasPadding) return false;
+
+    // <a> must have button styling to be considered a button
+    return hasButtonClasses && (hasBg || hasBorder) && hasPadding;
+  }
+
+  // Rule 5: <div> with role="button" AND button classes
+  if (tag === 'DIV') {
+    // Already handled by Rule 3 above
+    return false; // Covered by role="button" check
+  }
+
+  return false;
+}
+
+/**
  * Extracts button components with variants using visual similarity merging.
  *
  * This function scans the entire page for button-like elements (button tags, elements
@@ -186,11 +296,37 @@ function areButtonsSimilar(btn1: ButtonComponent, btn2: ButtonComponent): boolea
 export function extractButtons(): ButtonComponent[] {
   const buttons: ButtonComponent[] = [];
 
-  const buttonSelectors = 'button, [role="button"], a[class*="btn"], a[class*="button"], input[type="submit"], input[type="button"]';
+  // Query all potentially button-like elements
+  const buttonSelectors = 'button, [role="button"], a[class*="btn"], a[class*="button"], input[type="submit"], input[type="button"], div[role="button"]';
   const elements = document.querySelectorAll(buttonSelectors);
 
   elements.forEach(btn => {
+    // Apply filtering rules to exclude non-buttons
+    if (!isActualButton(btn)) return;
+    if (isNavigationLink(btn)) return;
+
     const styles = getComputedStyle(btn);
+
+    // Additional filter: Require substantial button styling
+    // This catches:
+    // - styled-component patterns like "Button-sc-xxx" that are actually just links
+    // - <button> tags styled as plain text/links
+    // - role="button" divs without button appearance
+    const hasBg = styles.backgroundColor !== 'rgba(0, 0, 0, 0)' && styles.backgroundColor !== 'transparent';
+    const hasBorder = parseFloat(styles.borderWidth) > 0;
+    const hasPadding = parseFloat(styles.paddingLeft) >= 8 || parseFloat(styles.paddingRight) >= 8;
+    const hasRadius = parseFloat(styles.borderRadius) >= 4;
+
+    // Count button features
+    const buttonFeatures = [hasBg, hasBorder, hasPadding, hasRadius].filter(Boolean).length;
+
+    // <a> tags and role="button" need at least 2 features
+    // <button> tags need at least 1 feature (more lenient since they're semantic buttons)
+    if (btn.tagName === 'A' || btn.getAttribute('role') === 'button') {
+      if (buttonFeatures < 2) return; // Not enough button styling
+    } else if (btn.tagName === 'BUTTON') {
+      if (buttonFeatures < 1) return; // Even <button> tags need SOME styling
+    }
 
     // Get font size from the actual text content, not the button wrapper
     const textFontSize = getButtonTextFontSize(btn as HTMLElement);
@@ -208,10 +344,13 @@ export function extractButtons(): ButtonComponent[] {
       height: styles.height
     };
 
+    // Normalize all color formats to RGB
+    const normalizedStyles = normalizeComponentStyles(componentStyles);
+
     const newButton: ButtonComponent = {
       html: getCleanHTML(btn as HTMLElement),
       classes: (btn as HTMLElement).className || '',
-      styles: componentStyles,
+      styles: normalizedStyles,
       variant: inferVariant(btn as HTMLElement),
       count: 1,
       stateStyles: extractStateStyles(btn as HTMLElement)

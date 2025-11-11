@@ -10,36 +10,81 @@ import {
 import { getCachedComputedStyle } from '../utils/domCache';
 
 /**
+ * Checks if a font name is a generic CSS font family
+ * Generic fonts should be filtered out as they're fallbacks, not actual design choices
+ */
+function isGenericFont(font: string): boolean {
+  const generics = ['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui'];
+  return generics.includes(font.toLowerCase().trim());
+}
+
+/**
+ * Extracts the primary font from a font-family stack
+ * Font stacks typically list preferred font first, followed by fallbacks
+ * Example: '"Inter", -apple-system, sans-serif' -> 'Inter'
+ */
+function extractPrimaryFont(fontFamily: string): string | null {
+  if (!fontFamily || fontFamily === 'inherit') return null;
+
+  // Split by comma to get font stack
+  const fonts = fontFamily.split(',').map(f => f.trim());
+
+  for (const font of fonts) {
+    // Remove quotes
+    const cleanFont = font.replace(/['"]/g, '').trim();
+
+    // Skip generic fonts
+    if (isGenericFont(cleanFont)) continue;
+
+    // Skip system fonts that start with -
+    if (cleanFont.startsWith('-')) continue;
+
+    // Return first non-generic, non-system font
+    if (cleanFont.length > 0) {
+      return cleanFont;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Extracts font family values from elements on the page.
  *
- * Scans up to 100 elements and collects their computed font-family values,
- * filtering out inherited values. Returns the top 10 most unique fonts found.
+ * Scans up to 300 text-bearing elements and collects their computed font-family values.
+ * Intelligently parses font stacks to extract primary fonts (not fallbacks).
+ * Filters out generic font families like "sans-serif" and system fonts like "-apple-system".
  *
- * @returns {string[]} Array of font family strings (max 10) found on the page.
- * Font families are returned as computed by the browser, including fallbacks.
+ * @returns {string[]} Array of unique primary font family names (max 10) found on the page.
  *
  * @example
  * ```typescript
  * const fonts = extractFonts();
  * // Returns: [
- * //   '"Inter", sans-serif',
- * //   '"Roboto Mono", monospace',
- * //   'system-ui, -apple-system, sans-serif'
+ * //   'Inter',
+ * //   'Roboto Mono',
+ * //   'gg sans'
  * // ]
  * ```
  */
 export function extractFonts(): string[] {
   const fonts = new Set<string>();
-  const elements = document.querySelectorAll('*');
-  const maxElements = Math.min(elements.length, 100);
+
+  // Target text-bearing elements for better font detection
+  const elements = document.querySelectorAll(
+    'p, h1, h2, h3, h4, h5, h6, span, a, button, label, li, div[class*="text"], div[class*="content"]'
+  );
+
+  const maxElements = Math.min(elements.length, 300); // Increased from 100
 
   for (let i = 0; i < maxElements; i++) {
     const element = elements[i];
     const styles = getCachedComputedStyle(element);
     const fontFamily = styles.fontFamily;
 
-    if (fontFamily && fontFamily !== 'inherit') {
-      fonts.add(fontFamily);
+    const primaryFont = extractPrimaryFont(fontFamily);
+    if (primaryFont) {
+      fonts.add(primaryFont);
     }
   }
 

@@ -191,7 +191,33 @@ export function analyzeTypeScale(fontSizes: number[]): TypeScaleAnalysis {
     ? Math.round(baseCandidates.reduce((a, b) => a + b) / baseCandidates.length)
     : 16;
 
-  // Calculate ratios between consecutive sizes
+  // Check for LINEAR progression first (e.g., 10, 12, 14, 16, 18)
+  const differences: number[] = [];
+  for (let i = 1; i < uniqueSizes.length; i++) {
+    differences.push(uniqueSizes[i] - uniqueSizes[i - 1]);
+  }
+
+  if (differences.length > 0) {
+    // Calculate average difference
+    const avgDiff = differences.reduce((a, b) => a + b, 0) / differences.length;
+
+    // Check if differences are consistent (linear scale)
+    const diffVariance = differences.map(d => Math.abs(d - avgDiff)).reduce((a, b) => a + b, 0) / differences.length;
+    const isLinear = diffVariance < avgDiff * 0.3; // Less than 30% variance means linear
+
+    if (isLinear && avgDiff >= 1.5) {
+      // It's a linear scale!
+      return {
+        baseSize,
+        ratio: 1, // Not a ratio-based scale
+        ratioName: `Linear progression (+${Math.round(avgDiff)}px steps)`,
+        scale: uniqueSizes.slice(0, 8),
+        confidence: 'high'
+      };
+    }
+  }
+
+  // Not linear, check for RATIO-based scale
   const ratios: number[] = [];
   for (let i = 1; i < uniqueSizes.length && i < 6; i++) {
     const ratio = uniqueSizes[i] / uniqueSizes[i - 1];

@@ -55,6 +55,8 @@ export interface DOMNode {
   styles?: DOMNodeStyles;
   text?: string;
   children?: DOMNode[];
+  svgChildren?: number;  // Number of internal SVG elements (collapsed for readability)
+  note?: string;         // Additional notes about the node
 }
 
 /**
@@ -92,6 +94,8 @@ export interface DOMTreeExtraction {
   url: string;
   viewport: Viewport;
   tree: DOMNode | null;
+  nodeCount?: number;
+  depthUsed?: number;
 }
 
 // ============================================================================
@@ -118,6 +122,7 @@ export interface CSSCustomProperties {
 export interface ColorExtraction {
   colors: string[];
   usage: Record<string, number>;
+  confidence?: number; // 0-1 score based on color consistency and CSS variable usage
 }
 
 /**
@@ -152,6 +157,7 @@ export interface ShadowSystem {
   elevationLevels: ShadowGroup[];
   pattern: string;
   totalUniqueShadows: number;
+  confidence?: number; // 0-1 score based on shadow consistency and elevation pattern clarity
 }
 
 // ============================================================================
@@ -218,19 +224,28 @@ export interface StateStyles {
     transform?: string;
     boxShadow?: string;
     borderColor?: string;
+    filter?: string;
     utilityClasses?: string[];
+    hasTransition?: boolean;
+    transition?: string;
+    inferredInteractive?: boolean;
+    dataAttribute?: string;
   };
   focus?: {
     outline?: string;
     boxShadow?: string;
     borderColor?: string;
+    backgroundColor?: string;
     utilityClasses?: string[];
+    dataAttribute?: string;
   };
   active?: {
     backgroundColor?: string;
     transform?: string;
     boxShadow?: string;
+    opacity?: string;
     utilityClasses?: string[];
+    dataAttribute?: string;
   };
   disabled?: {
     opacity?: string;
@@ -238,6 +253,7 @@ export interface StateStyles {
     backgroundColor?: string;
     isDisabled?: boolean;
     utilityClasses?: string[];
+    dataAttribute?: string;
   };
 }
 
@@ -595,6 +611,7 @@ export interface SpacingScale {
   pattern: string;
   totalUniqueValues: number;
   recommendation: string;
+  confidence?: number; // 0-1 score based on base unit consistency and scale adherence
 }
 
 /**
@@ -773,10 +790,27 @@ export interface ScrollbarStyle {
 /**
  * Complete style extraction result from a web page
  */
+// Import maturity types (forward declaration to avoid circular dependency)
+export interface MaturityAnalysis {
+  level: 'Basic' | 'Emerging' | 'Developing' | 'Mature' | 'Advanced';
+  score: number;
+  strengths: string[];
+  improvements: string[];
+  details: {
+    colorSystemScore: number;
+    spacingSystemScore: number;
+    typographyScore: number;
+    componentSystemScore: number;
+    consistencyScore: number;
+    documentationScore: number;
+  };
+}
+
 export interface StyleExtraction {
   cssVariables: CSSCustomProperties;
   colors: string[];
   colorUsage: Record<string, number>;
+  colorExtraction?: ColorExtraction; // Full color extraction with confidence
   fonts: string[];
   borderRadius: string[];
   shadows: ShadowSystem;
@@ -795,4 +829,5 @@ export interface StyleExtraction {
   zIndex?: ZIndexHierarchy;
   animations?: AnimationExtraction;
   domStructure?: DOMTreeExtraction;
+  maturityAnalysis?: MaturityAnalysis;
 }

@@ -1,4 +1,4 @@
-import { getCleanHTML, getClassName } from '../../utils/styleHelpers';
+import { getCleanHTML, getClassName, normalizeColor } from '../../utils/styleHelpers';
 import { extractStateStyles, createStyleSignature } from '../../utils/componentHelpers';
 
 /**
@@ -156,8 +156,8 @@ export function extractCards(): CardVariant[] {
       existing.count++;
     } else {
       const componentStyles: ComponentStyles = {
-        background: styles.backgroundColor,
-        border: styles.border,
+        background: normalizeColor(styles.backgroundColor),
+        border: styles.border, // Border will be normalized below if it contains colors
         borderRadius: styles.borderRadius,
         padding: styles.padding,
         boxShadow: styles.boxShadow,
@@ -274,7 +274,19 @@ export function extractTables(): TableVariant[] {
     }
 
     const styles = getComputedStyle(el);
-    const signature = `table-${styles.display}-${styles.backgroundColor}-${styles.border}-${el.children.length}`;
+
+    // Extract cell styles first (needed for signature)
+    let cellPadding = '0px';
+    let cellBorderBottom = '0px none';
+    const cell = el.querySelector('td, [role="cell"], [role="gridcell"], [class*="cell"]:not([class*="header"])');
+    if (cell) {
+      const cellStyles = getComputedStyle(cell as HTMLElement);
+      cellPadding = cellStyles.padding;
+      cellBorderBottom = cellStyles.borderBottom;
+    }
+
+    // Create signature based on visual appearance (NOT row count)
+    const signature = `table-${styles.display}-${styles.backgroundColor}-${styles.border}-${cellPadding}-${cellBorderBottom}`;
 
     if (seen.has(signature)) {
       const existing = seen.get(signature)!;
@@ -300,13 +312,11 @@ export function extractTables(): TableVariant[] {
         };
       }
 
-      // Extract cell styles
-      const cell = el.querySelector('td, [role="cell"], [role="gridcell"], [class*="cell"]:not([class*="header"])');
+      // Add cell styles to component
       if (cell) {
-        const cellStyles = getComputedStyle(cell as HTMLElement);
         componentStyles.cell = {
-          padding: cellStyles.padding,
-          borderBottom: cellStyles.borderBottom
+          padding: cellPadding,
+          borderBottom: cellBorderBottom
         };
       }
 
