@@ -346,9 +346,32 @@ function generateYAML(styles: any): string {
     const spacing = styles.layoutPatterns.spacingScale;
     yaml += `  base-unit: ${spacing.baseUnit}\n`;
     yaml += `  pattern: "${spacing.pattern}"\n`;
-    yaml += `  scale: [${spacing.spacingScale.slice(0, 10).map((s: any) => s.value).join(', ')}]\n`;
+
+    // Sort spacing values numerically and separate outliers
+    const spacingValues = spacing.spacingScale.map((s: any) => ({
+      ...s,
+      numValue: parseInt(s.value)
+    }));
+
+    // Sort by numeric value
+    spacingValues.sort((a: any, b: any) => a.numValue - b.numValue);
+
+    // Separate outliers (values > 100px are typically outliers in spacing systems)
+    const mainScale = spacingValues.filter((s: any) => s.numValue <= 100);
+    const outliers = spacingValues.filter((s: any) => s.numValue > 100);
+
+    // Show main scale (sorted by size)
+    yaml += `  scale: [${mainScale.map((s: any) => s.value).join(', ')}]\n`;
+
+    // Show outliers if any exist
+    if (outliers.length > 0) {
+      yaml += `  outliers: [${outliers.map((s: any) => s.value).join(', ')}]  # Large spacing values (page layout)\n`;
+    }
+
     yaml += `\n  usage:\n`;
-    spacing.spacingScale.slice(0, 8).forEach((s: any) => {
+    // Show usage stats sorted by frequency (most common first)
+    const sortedByUsage = [...spacingValues].sort((a: any, b: any) => b.count - a.count);
+    sortedByUsage.slice(0, 8).forEach((s: any) => {
       yaml += `    ${s.value}: ${s.count}  # ${s.usage}\n`;
     });
   }
