@@ -580,12 +580,12 @@ function inferCardVariant(card: HTMLElement): 'elevated' | 'flat' | 'interactive
  * Infers avatar variant from size and shape.
  *
  * Categorizes avatars by:
- * - Shape: circular (50% border-radius) or rounded (smaller radius)
+ * - Shape: circular (50% border-radius), square (0px border-radius), or rounded (other values)
  * - Size: xs (≤24px), sm (≤32px), md (≤48px), lg (≤64px), xl (>64px)
  *
  * @param avatar - The avatar element
  * @param styles - Computed styles of the avatar
- * @returns Variant string in format "{shape}-{size}" (e.g., "circular-md")
+ * @returns Variant string in format "{shape}-{size}" (e.g., "circular-md", "square-sm")
  *
  * @internal
  */
@@ -595,8 +595,17 @@ function inferAvatarVariant(avatar: HTMLElement, styles: CSSStyleDeclaration): s
   const size = Math.round(rect.width);
 
   // Determine shape
-  const isCircular = borderRadius === '50%' || borderRadius === '9999px';
-  const shape = isCircular ? 'circular' : 'rounded';
+  const isCircular = borderRadius === '50%' || borderRadius === '9999px' || borderRadius === '9000px';
+  const isSquare = borderRadius === '0px' || borderRadius === '0' || !borderRadius;
+
+  let shape: string;
+  if (isCircular) {
+    shape = 'circular';
+  } else if (isSquare) {
+    shape = 'square';
+  } else {
+    shape = 'rounded';
+  }
 
   // Determine size category
   if (size <= 24) return `${shape}-xs`;

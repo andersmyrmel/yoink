@@ -509,7 +509,7 @@ function generateYAML(styles: any): string {
       yaml += `      size: ${heading.fontSize}\n`;
       yaml += `      weight: ${heading.fontWeight}\n`;
       yaml += `      line-height: ${heading.lineHeight}\n`;
-      if (heading.usage) yaml += `      usage: ${heading.usage}\n`;
+      if (heading.usage) yaml += `      usage: "${heading.usage}"\n`;
       if (heading.count) yaml += `      count: ${heading.count}\n`;
       if (heading.examples && heading.examples[0]) {
         yaml += `      example: "${heading.examples[0].substring(0, 50)}"\n`;

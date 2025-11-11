@@ -31,12 +31,22 @@ import { extractStateStyles, createStyleSignature } from '../../utils/componentH
 export function inferInputVariant(input: HTMLElement, type: string): string {
   const className = getClassName(input).toLowerCase();
 
+  // Handle specific input types
   if (type === 'checkbox') return 'checkbox';
   if (type === 'radio') return 'radio';
   if (type === 'select' || input.tagName.toLowerCase() === 'select') return 'select';
   if (type === 'textarea' || input.tagName.toLowerCase() === 'textarea') return 'textarea';
   if (type === 'search') return 'search';
+  if (type === 'range') return 'range';
+  if (type === 'number') return 'number';
+  if (type === 'email') return 'email';
+  if (type === 'password') return 'password';
+  if (type === 'date' || type === 'datetime-local') return 'date';
+  if (type === 'tel') return 'tel';
+  if (type === 'url') return 'url';
+  if (type === 'file') return 'file';
 
+  // Check for error/success states
   if (className.includes('error') || className.includes('invalid')) return 'text-error';
   if (className.includes('success') || className.includes('valid')) return 'text-success';
 
