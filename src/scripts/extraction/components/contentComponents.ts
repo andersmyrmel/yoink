@@ -57,7 +57,7 @@ interface ComponentVariant {
  * Card component variant structure
  */
 interface CardVariant extends ComponentVariant {
-  variant: 'elevated' | 'flat' | 'interactive' | 'media' | 'default';
+  variant: string; // elevated, flat, interactive, media, media-overlay, outlined, overlay, ghost, default
 }
 
 /**
@@ -565,13 +565,35 @@ export function extractAvatars(): AvatarVariant[] {
  *
  * @internal
  */
-function inferCardVariant(card: HTMLElement): 'elevated' | 'flat' | 'interactive' | 'media' | 'default' {
+function inferCardVariant(card: HTMLElement): string {
   const className = getClassName(card).toLowerCase();
+  const styles = getComputedStyle(card);
 
+  // Check class names first
   if (className.includes('elevated') || className.includes('raised')) return 'elevated';
   if (className.includes('flat') || className.includes('outlined')) return 'flat';
   if (className.includes('interactive') || className.includes('clickable')) return 'interactive';
-  if (card.querySelector('img, video')) return 'media';
+
+  // Analyze actual styles to create semantic variant names
+  const hasShadow = styles.boxShadow !== 'none' && !styles.boxShadow.includes('0px 0px 0px');
+  const hasBorder = styles.border !== 'none' && !styles.borderWidth.startsWith('0');
+  const hasMedia = card.querySelector('img, video') !== null;
+
+  // Check background opacity to distinguish overlay vs solid cards
+  const bgColor = styles.backgroundColor;
+  const isTransparent = bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent';
+  const isSemiTransparent = bgColor.includes('rgba') && !isTransparent;
+
+  // Build variant name based on characteristics
+  if (hasMedia) {
+    if (isSemiTransparent) return 'media-overlay';
+    return 'media';
+  }
+
+  if (hasShadow) return 'elevated';
+  if (hasBorder && !hasShadow) return 'outlined';
+  if (isSemiTransparent) return 'overlay';
+  if (isTransparent) return 'ghost';
 
   return 'default';
 }

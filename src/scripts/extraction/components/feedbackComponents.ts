@@ -82,12 +82,48 @@ export function extractAlerts(): AlertComponent[] {
 function inferAlertVariant(alert: HTMLElement): string {
   const className = getClassName(alert).toLowerCase();
   const role = alert.getAttribute('role');
+  const styles = getComputedStyle(alert);
 
+  // Check class names first
   if (className.includes('success')) return 'success';
   if (className.includes('error') || className.includes('danger')) return 'error';
   if (className.includes('warning')) return 'warning';
   if (className.includes('info')) return 'info';
   if (role === 'alert') return 'alert';
+
+  // Analyze colors to infer semantic variant
+  const bgColor = styles.backgroundColor.toLowerCase();
+  const borderColor = styles.borderColor?.toLowerCase() || '';
+
+  // Helper to detect color dominance
+  const hasColorDominance = (colorStr: string, targetChannel: 'r' | 'g' | 'b') => {
+    const match = colorStr.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (!match) return false;
+    const [_, r, g, b] = match.map(Number);
+    const values = { r, g, b };
+    const target = values[targetChannel];
+    const others = Object.entries(values).filter(([k]) => k !== targetChannel).map(([_, v]) => v);
+    return target > Math.max(...others) && target > 150;
+  };
+
+  // Check background or border for semantic colors
+  const checkColor = (c: string) => {
+    if (hasColorDominance(c, 'g')) return 'success';
+    if (hasColorDominance(c, 'r')) return 'error';
+    if (hasColorDominance(c, 'b')) return 'info';
+    if (c.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/) && c.includes('rgb(') &&
+        parseInt(c.match(/rgb\((\d+)/)?.[1] || '0') > 200 &&
+        parseInt(c.match(/,\s*(\d+)/)?.[1] || '0') > 150) {
+      return 'warning';
+    }
+    return null;
+  };
+
+  const bgVariant = checkColor(bgColor);
+  if (bgVariant) return bgVariant;
+
+  const borderVariant = checkColor(borderColor);
+  if (borderVariant) return borderVariant;
 
   return 'default';
 }
@@ -310,13 +346,75 @@ export function extractBadges(): BadgeComponent[] {
  */
 function inferBadgeVariant(badge: HTMLElement): string {
   const className = getClassName(badge).toLowerCase();
+  const styles = getComputedStyle(badge);
 
+  // Check class names first
   if (className.includes('success') || className.includes('green')) return 'success';
   if (className.includes('error') || className.includes('danger') || className.includes('red')) return 'error';
   if (className.includes('warning') || className.includes('yellow')) return 'warning';
   if (className.includes('info') || className.includes('blue')) return 'info';
   if (className.includes('primary')) return 'primary';
   if (className.includes('secondary') || className.includes('gray')) return 'secondary';
+
+  // Analyze background color to infer semantic variant
+  const bgColor = styles.backgroundColor.toLowerCase();
+
+  // Helper to check if color contains RGB values in certain ranges
+  const hasGreen = (c: string) => {
+    const match = c.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (match) {
+      const [_, r, g, b] = match.map(Number);
+      return g > r && g > b && g > 150; // Green dominant
+    }
+    return c.includes('green');
+  };
+
+  const hasRed = (c: string) => {
+    const match = c.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (match) {
+      const [_, r, g, b] = match.map(Number);
+      return r > g && r > b && r > 150; // Red dominant
+    }
+    return c.includes('red');
+  };
+
+  const hasYellow = (c: string) => {
+    const match = c.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (match) {
+      const [_, r, g, b] = match.map(Number);
+      return r > 200 && g > 150 && b < 100; // Yellow/orange
+    }
+    return c.includes('yellow') || c.includes('orange');
+  };
+
+  const hasBlue = (c: string) => {
+    const match = c.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (match) {
+      const [_, r, g, b] = match.map(Number);
+      return b > r && b > g && b > 150; // Blue dominant
+    }
+    return c.includes('blue');
+  };
+
+  const hasPurple = (c: string) => {
+    const match = c.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (match) {
+      const [_, r, g, b] = match.map(Number);
+      return r > 100 && b > 100 && Math.abs(r - b) < 50 && g < r - 30; // Purple
+    }
+    return c.includes('purple') || c.includes('violet');
+  };
+
+  // Check background color for semantic meaning
+  if (hasGreen(bgColor)) return 'success';
+  if (hasRed(bgColor)) return 'error';
+  if (hasYellow(bgColor)) return 'warning';
+  if (hasBlue(bgColor)) return 'info';
+  if (hasPurple(bgColor)) return 'primary';
+
+  // Check if it's a subtle badge (gray background)
+  const isGray = bgColor.includes('rgb(') && !hasGreen(bgColor) && !hasRed(bgColor) && !hasYellow(bgColor) && !hasBlue(bgColor) && !hasPurple(bgColor);
+  if (isGray) return 'secondary';
 
   return 'default';
 }
