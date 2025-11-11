@@ -122,3 +122,75 @@ export function safeYamlLine(key: string, value: any, indent: string = '', fallb
 
   return `${indent}${key}: ${safeVal}\n`;
 }
+
+/**
+ * Checks if a style value is meaningless noise that should be filtered from YAML output.
+ *
+ * Filters out default/zero/transparent values that don't provide useful design information:
+ * - Transparent backgrounds: rgba(0, 0, 0, 0), transparent
+ * - Zero dimensions: 0px, 0
+ * - Zero borders: 0px none, 0px solid
+ * - No shadows: none (for box-shadow)
+ * - Zero border-radius: 0px
+ * - Zero padding/margin: 0px
+ *
+ * @param key - The CSS property name (e.g., 'background', 'padding')
+ * @param value - The CSS value to check
+ * @returns True if the value is meaningless noise and should be filtered out
+ *
+ * @example
+ * isMeaninglessValue('background', 'rgba(0, 0, 0, 0)') // true
+ * isMeaninglessValue('background', 'rgb(255, 0, 0)') // false
+ * isMeaninglessValue('border', '0px none rgb(0, 0, 0)') // true
+ * isMeaninglessValue('border', '1px solid rgb(0, 0, 0)') // false
+ */
+export function isMeaninglessValue(key: string, value: any): boolean {
+  if (!value || value === undefined || value === null) return true;
+
+  const strValue = String(value).trim().toLowerCase();
+
+  // Empty values
+  if (strValue === '' || strValue === 'undefined' || strValue === 'null') return true;
+
+  // Property-specific filters
+  switch (key) {
+    case 'background':
+    case 'backgroundColor':
+      // Transparent backgrounds are noise
+      return strValue === 'rgba(0, 0, 0, 0)' ||
+             strValue === 'transparent' ||
+             strValue === 'rgba(0,0,0,0)';
+
+    case 'border':
+      // Zero or no borders are noise
+      return strValue.startsWith('0px none') ||
+             strValue.startsWith('0px solid') ||
+             strValue === 'none' ||
+             strValue === '0px';
+
+    case 'borderRadius':
+    case 'border-radius':
+      // Zero border-radius is noise
+      return strValue === '0px' || strValue === '0';
+
+    case 'boxShadow':
+    case 'box-shadow':
+      // No shadow is noise
+      return strValue === 'none';
+
+    case 'padding':
+    case 'margin':
+      // Zero padding/margin is noise
+      return strValue === '0px' || strValue === '0';
+
+    case 'width':
+    case 'height':
+    case 'minWidth':
+    case 'min-width':
+      // Zero dimensions are noise
+      return strValue === '0px' || strValue === '0';
+
+    default:
+      return false;
+  }
+}
