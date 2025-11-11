@@ -939,21 +939,34 @@ function generateYAML(styles: any): string {
     if (styles.components.tables && styles.components.tables.length > 0) {
       yaml += `\n  tables:\n`;
       styles.components.tables.forEach((table: any) => {
-        yaml += `    - count: ${table.count}\n`;
-        yaml += `      styles:\n`;
-        if (!isMeaninglessValue('background', table.styles.background)) {
-          yaml += `        background: "${table.styles.background}"\n`;
-        }
-        if (!isMeaninglessValue('border', table.styles.border)) {
-          yaml += `        border: "${table.styles.border}"\n`;
-        }
-        if (table.styles.header) {
-          // Check if there are any meaningful header properties before outputting header
-          const hasHeaderBg = !isMeaninglessValue('background', table.styles.header.background);
-          const hasHeaderColor = table.styles.header.color;
-          const hasHeaderWeight = table.styles.header.fontWeight;
+        // Check if table has ANY meaningful properties before outputting
+        const hasBackground = !isMeaninglessValue('background', table.styles.background);
+        const hasBorder = !isMeaninglessValue('border', table.styles.border);
 
-          if (hasHeaderBg || hasHeaderColor || hasHeaderWeight) {
+        // Check header properties
+        const hasHeaderBg = table.styles.header && !isMeaninglessValue('background', table.styles.header.background);
+        const hasHeaderColor = table.styles.header && table.styles.header.color;
+        const hasHeaderWeight = table.styles.header && table.styles.header.fontWeight;
+        const hasHeaderData = hasHeaderBg || hasHeaderColor || hasHeaderWeight;
+
+        // Check cell properties
+        const hasCellPadding = table.styles.cell && !isMeaninglessValue('padding', table.styles.cell.padding);
+        const hasCellBorder = table.styles.cell && !isMeaninglessValue('border', table.styles.cell.borderBottom);
+        const hasCellData = hasCellPadding || hasCellBorder;
+
+        // Only output table if it has ANY meaningful data
+        const hasMeaningfulData = hasBackground || hasBorder || hasHeaderData || hasCellData;
+
+        if (hasMeaningfulData) {
+          yaml += `    - count: ${table.count}\n`;
+          yaml += `      styles:\n`;
+          if (hasBackground) {
+            yaml += `        background: "${table.styles.background}"\n`;
+          }
+          if (hasBorder) {
+            yaml += `        border: "${table.styles.border}"\n`;
+          }
+          if (hasHeaderData) {
             yaml += `        header:\n`;
             if (hasHeaderBg) {
               yaml += `          background: "${table.styles.header.background}"\n`;
@@ -965,18 +978,12 @@ function generateYAML(styles: any): string {
               yaml += `          font-weight: ${table.styles.header.fontWeight}\n`;
             }
           }
-        }
-        if (table.styles.cell) {
-          // Check if there are any meaningful cell properties before outputting header
-          const hasPadding = !isMeaninglessValue('padding', table.styles.cell.padding);
-          const hasBorder = !isMeaninglessValue('border', table.styles.cell.borderBottom);
-
-          if (hasPadding || hasBorder) {
+          if (hasCellData) {
             yaml += `        cell:\n`;
-            if (hasPadding) {
+            if (hasCellPadding) {
               yaml += `          padding: ${table.styles.cell.padding}\n`;
             }
-            if (hasBorder) {
+            if (hasCellBorder) {
               yaml += `          border-bottom: "${table.styles.cell.borderBottom}"\n`;
             }
           }
