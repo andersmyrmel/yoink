@@ -56,6 +56,13 @@ import {
   extractDividers
 } from './contentComponents';
 
+// Import layout component extractors
+import {
+  extractSidebars,
+  extractTopbars,
+  extractNavigationMenus
+} from './layoutComponents';
+
 /**
  * Extracts all UI components from the current page.
  *
@@ -127,7 +134,12 @@ export function extractComponents(): ComponentExtraction {
     avatars: extractAvatars(),
     accordions: extractAccordions(),
     progress: extractProgress(),
-    dividers: extractDividers()
+    dividers: extractDividers(),
+
+    // High-level layout components
+    sidebars: extractSidebars(),
+    topbars: extractTopbars(),
+    navigationMenus: extractNavigationMenus()
   };
 
   // Normalize all colors in all components to RGB format

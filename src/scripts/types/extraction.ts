@@ -300,6 +300,7 @@ export interface ComponentVariant {
   styles: ComponentStyles;
   variant: string;
   count: number;
+  description?: string;
   stateStyles?: StateStyles;
   states?: StateStyles;
 }
@@ -448,6 +449,10 @@ export interface ComponentExtraction {
   richTextEditors: ComponentVariant[];
   sliders: ComponentVariant[];
   comboboxes: ComponentVariant[];
+  // Layout components
+  sidebars: ComponentVariant[];
+  topbars: ComponentVariant[];
+  navigationMenus: ComponentVariant[];
 }
 
 // ============================================================================

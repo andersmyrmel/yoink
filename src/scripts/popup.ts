@@ -887,6 +887,64 @@ function generateYAML(styles: any): string {
   if (styles.components) {
     yaml += `components:\n`;
 
+    // Layout Components (Structural)
+    if (styles.components.sidebars && styles.components.sidebars.length > 0) {
+      yaml += `  sidebars:\n`;
+      styles.components.sidebars.forEach((sidebar: any) => {
+        yaml += `    - variant: ${sidebar.variant}\n`;
+        yaml += `      count: ${sidebar.count}\n`;
+        if (sidebar.description) {
+          yaml += `      description: ${sidebar.description}\n`;
+        }
+        yaml += `      styles:\n`;
+        if (sidebar.styles.width) yaml += `        width: ${sidebar.styles.width}\n`;
+        if (sidebar.styles.height) yaml += `        height: ${sidebar.styles.height}\n`;
+        if (sidebar.styles.position) yaml += `        position: ${sidebar.styles.position}\n`;
+        if (sidebar.styles.backgroundColor && sidebar.styles.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+          yaml += `        background: "${sidebar.styles.backgroundColor}"\n`;
+        }
+        if (sidebar.styles.borderRight) yaml += `        border-right: "${sidebar.styles.borderRight}"\n`;
+        if (sidebar.styles.zIndex) yaml += `        z-index: ${sidebar.styles.zIndex}\n`;
+      });
+    }
+
+    if (styles.components.topbars && styles.components.topbars.length > 0) {
+      yaml += `  topbars:\n`;
+      styles.components.topbars.forEach((topbar: any) => {
+        yaml += `    - variant: ${topbar.variant}\n`;
+        yaml += `      count: ${topbar.count}\n`;
+        if (topbar.description) {
+          yaml += `      description: ${topbar.description}\n`;
+        }
+        yaml += `      styles:\n`;
+        if (topbar.styles.height) yaml += `        height: ${topbar.styles.height}\n`;
+        if (topbar.styles.position) yaml += `        position: ${topbar.styles.position}\n`;
+        if (topbar.styles.backgroundColor && topbar.styles.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+          yaml += `        background: "${topbar.styles.backgroundColor}"\n`;
+        }
+        if (topbar.styles.borderBottom) yaml += `        border-bottom: "${topbar.styles.borderBottom}"\n`;
+        if (topbar.styles.boxShadow) yaml += `        box-shadow: "${topbar.styles.boxShadow}"\n`;
+        if (topbar.styles.zIndex) yaml += `        z-index: ${topbar.styles.zIndex}\n`;
+      });
+    }
+
+    if (styles.components.navigationMenus && styles.components.navigationMenus.length > 0) {
+      yaml += `  navigation-menus:\n`;
+      styles.components.navigationMenus.forEach((menu: any) => {
+        yaml += `    - variant: ${menu.variant}\n`;
+        yaml += `      count: ${menu.count}\n`;
+        if (menu.description) {
+          yaml += `      description: ${menu.description}\n`;
+        }
+        yaml += `      styles:\n`;
+        if (menu.styles.display) yaml += `        display: ${menu.styles.display}\n`;
+        if (menu.styles.flexDirection) yaml += `        flex-direction: ${menu.styles.flexDirection}\n`;
+        if (menu.styles.gap) yaml += `        gap: ${menu.styles.gap}\n`;
+        if (menu.styles.padding) yaml += `        padding: ${menu.styles.padding}\n`;
+        if (menu.styles.backgroundColor) yaml += `        background: "${menu.styles.backgroundColor}"\n`;
+      });
+    }
+
     // Buttons
     if (styles.components.buttons && styles.components.buttons.length > 0) {
       yaml += `  buttons:\n`;
