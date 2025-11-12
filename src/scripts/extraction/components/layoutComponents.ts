@@ -99,21 +99,19 @@ export function extractSidebars(): ComponentVariant[] {
     });
   }
 
-  // Fallback: Look for visually sidebar-like elements
+  // Fallback: Aggressive visual detection
   if (sidebars.length === 0) {
-    const candidates = [
-      ...Array.from(document.body.children),
-      ...Array.from(document.body.children).flatMap(c => Array.from(c.children))
-    ];
+    let candidates = Array.from(document.body.children);
+
+    if (candidates.length === 0) {
+      candidates = Array.from(document.body.querySelectorAll('*')).slice(0, 200);
+    }
 
     for (const el of candidates) {
-      if (!isVisible(el)) continue;
-
       const rect = el.getBoundingClientRect();
-      const styles = getCachedComputedStyle(el);
+      if (rect.width === 0 || rect.height === 0) continue;
 
-      // Must be on the left or right side
-      if (rect.left > 100 && rect.right < window.innerWidth - 100) continue;
+      const styles = getCachedComputedStyle(el);
 
       // Get actual dimensions
       const computedWidth = parseFloat(styles.width);
@@ -121,27 +119,30 @@ export function extractSidebars(): ComponentVariant[] {
       const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
       const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
 
-      // Must be sidebar-shaped: narrow and tall
-      if (actualWidth > 100 && actualWidth < 400 && actualHeight > 400) {
-        const position = rect.left < 100 ? 'left' : 'right';
+      // Must be sidebar-shaped: narrow (100-500px) and tall (300px+)
+      if (actualWidth < 100 || actualWidth > 500 || actualHeight < 300) continue;
 
-        sidebars.push({
-          variant: 'sidebar',
-          count: 1,
-          html: `<div class="${el.className || 'sidebar'}">...</div>`,
-          classes: String(el.className || 'sidebar'),
-          description: `${styles.position === 'fixed' ? 'Fixed ' : ''}sidebar panel on ${position}`,
-          styles: {
-            width: `${Math.round(actualWidth)}px`,
-            height: `${Math.round(actualHeight)}px`,
-            position: styles.position,
-            background: styles.backgroundColor,
-            border: styles.border,
-            zIndex: styles.zIndex !== 'auto' ? styles.zIndex : undefined
-          }
-        });
-        break; // Only take the first one found
-      }
+      // Must be on the left or right edge (within 50px)
+      if (rect.left > 50 && rect.right < window.innerWidth - 50) continue;
+
+      const position = rect.left < 100 ? 'left' : 'right';
+
+      sidebars.push({
+        variant: 'sidebar',
+        count: 1,
+        html: `<div class="${el.className || 'sidebar'}">...</div>`,
+        classes: String(el.className || 'sidebar'),
+        description: `${styles.position === 'fixed' ? 'Fixed ' : ''}sidebar panel on ${position}`,
+        styles: {
+          width: `${Math.round(actualWidth)}px`,
+          height: `${Math.round(actualHeight)}px`,
+          position: styles.position,
+          background: styles.backgroundColor,
+          border: styles.border,
+          zIndex: styles.zIndex !== 'auto' ? styles.zIndex : undefined
+        }
+      });
+      break; // Only take the first one found
     }
   }
 
@@ -232,49 +233,48 @@ export function extractTopbars(): ComponentVariant[] {
     });
   }
 
-  // Fallback: Look for visually topbar-like elements
+  // Fallback: Aggressive visual detection
   if (topbars.length === 0) {
-    const candidates = [
-      ...Array.from(document.body.children),
-      ...Array.from(document.body.children).flatMap(c => Array.from(c.children))
-    ];
+    let candidates = Array.from(document.body.children);
+
+    if (candidates.length === 0) {
+      candidates = Array.from(document.body.querySelectorAll('*')).slice(0, 200);
+    }
 
     for (const el of candidates) {
-      if (!isVisible(el)) continue;
-
       const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+
+      // Must be near the top (within 200px)
+      if (rect.top > 200) continue;
+
       const styles = getCachedComputedStyle(el);
-
-      // Must be near the top
-      if (rect.top > 150) continue;
-
-      // Must be wide
-      if (rect.width < window.innerWidth * 0.5) continue;
 
       // Get actual dimensions
       const computedHeight = parseFloat(styles.height);
       const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
 
-      // Must be topbar-shaped: wide and short
-      if (actualHeight > 30 && actualHeight < 150) {
-        topbars.push({
-          variant: 'topbar',
-          count: 1,
-          html: `<div class="${el.className || 'topbar'}">...</div>`,
-          classes: String(el.className || 'topbar'),
-          description: `${styles.position === 'fixed' ? 'Fixed ' : ''}application toolbar`,
-          styles: {
-            height: `${Math.round(actualHeight)}px`,
-            width: '100%',
-            position: styles.position,
-            background: styles.backgroundColor,
-            border: styles.border,
-            boxShadow: styles.boxShadow !== 'none' ? styles.boxShadow : undefined,
-            zIndex: styles.zIndex !== 'auto' ? styles.zIndex : undefined
-          }
-        });
-        break; // Only take the first one found
-      }
+      // Must be topbar-shaped: wide (at least 40% of viewport) and short (30-200px)
+      if (rect.width < window.innerWidth * 0.4) continue;
+      if (actualHeight < 30 || actualHeight > 200) continue;
+
+      topbars.push({
+        variant: 'topbar',
+        count: 1,
+        html: `<div class="${el.className || 'topbar'}">...</div>`,
+        classes: String(el.className || 'topbar'),
+        description: `${styles.position === 'fixed' ? 'Fixed ' : ''}application toolbar`,
+        styles: {
+          height: `${Math.round(actualHeight)}px`,
+          width: '100%',
+          position: styles.position,
+          background: styles.backgroundColor,
+          border: styles.border,
+          boxShadow: styles.boxShadow !== 'none' ? styles.boxShadow : undefined,
+          zIndex: styles.zIndex !== 'auto' ? styles.zIndex : undefined
+        }
+      });
+      break; // Only take the first one found
     }
   }
 

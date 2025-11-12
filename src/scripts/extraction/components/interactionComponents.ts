@@ -386,6 +386,39 @@ export function extractButtons(): ButtonComponent[] {
     }
   });
 
+  // Post-process: Rename duplicate variant names by adding distinguishing suffixes
+  const variantCounts = new Map<string, number>();
+  buttons.forEach(btn => {
+    const count = variantCounts.get(btn.variant) || 0;
+    variantCounts.set(btn.variant, count + 1);
+  });
+
+  // If a variant name appears multiple times, add size/style suffixes
+  variantCounts.forEach((count, variantName) => {
+    if (count > 1) {
+      // Find all buttons with this variant name and add distinguishing suffixes
+      const duplicates = buttons.filter(b => b.variant === variantName);
+
+      // Sort by font size (larger first)
+      duplicates.sort((a, b) => {
+        const sizeA = parseFloat(a.styles.fontSize || '14px');
+        const sizeB = parseFloat(b.styles.fontSize || '14px');
+        return sizeB - sizeA;
+      });
+
+      // Rename them with size suffixes
+      duplicates.forEach((btn, index) => {
+        if (index === 0 && duplicates.length === 2) {
+          btn.variant = `${variantName}-large`;
+        } else if (index === 1 && duplicates.length === 2) {
+          btn.variant = `${variantName}-small`;
+        } else {
+          btn.variant = `${variantName}-${index + 1}`;
+        }
+      });
+    }
+  });
+
   return buttons.sort((a, b) => b.count - a.count).slice(0, 5);
 }
 

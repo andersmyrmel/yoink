@@ -193,28 +193,23 @@ function extractLayoutRegions(): LayoutRegion[] {
     }
   }
 
-  // Fallback: Look for positioned elements that are sidebar-shaped
-  // Check body children and grandchildren (layout-level elements)
+  // Fallback: Aggressive visual detection
+  // Scan ALL elements looking for sidebar-shaped elements on the left/right edge
   if (!sidebar) {
-    const candidates = [
-      ...Array.from(document.body.children),
-      ...Array.from(document.body.children).flatMap(c => Array.from(c.children))
-    ];
+    // Start with body children (most likely), then expand if needed
+    let candidates = Array.from(document.body.children);
+
+    // If no direct children work, try grandchildren too
+    if (candidates.length === 0 || candidates.every(el => !isVisible(el))) {
+      candidates = Array.from(document.body.querySelectorAll('*')).slice(0, 200); // Limit to first 200 to avoid performance issues
+    }
 
     for (const el of candidates) {
-      if (!isVisible(el)) continue;
+      // Skip if completely hidden
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
 
       const styles = getCachedComputedStyle(el);
-      const rect = el.getBoundingClientRect();
-
-      // Check if positioned (fixed, absolute, sticky, or even static if at left edge)
-      const isPositioned = styles.position === 'fixed' || styles.position === 'absolute' ||
-                          styles.position === 'sticky' || rect.left < 20;
-
-      if (!isPositioned) continue;
-
-      // Must be on the left side
-      if (rect.left > 100) continue;
 
       // Get actual dimensions
       const computedWidth = parseFloat(styles.width);
@@ -222,11 +217,15 @@ function extractLayoutRegions(): LayoutRegion[] {
       const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
       const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
 
-      // Must be sidebar-shaped: narrow and tall
-      if (actualWidth > 100 && actualWidth < 400 && actualHeight > 400) {
-        sidebar = el;
-        break;
-      }
+      // Must be sidebar-shaped: narrow (100-500px) and tall (300px+)
+      if (actualWidth < 100 || actualWidth > 500 || actualHeight < 300) continue;
+
+      // Must be on the left or right edge (within 50px)
+      if (rect.left > 50 && rect.right < window.innerWidth - 50) continue;
+
+      // Found a sidebar-shaped element!
+      sidebar = el;
+      break;
     }
   }
 
@@ -296,34 +295,36 @@ function extractLayoutRegions(): LayoutRegion[] {
     }
   }
 
-  // Fallback: Look for wide, short elements near the top
+  // Fallback: Aggressive visual detection for topbar
   if (!topbar) {
-    const candidates = [
-      ...Array.from(document.body.children),
-      ...Array.from(document.body.children).flatMap(c => Array.from(c.children))
-    ];
+    // Start with body children (most likely), then expand if needed
+    let candidates = Array.from(document.body.children);
+
+    if (candidates.length === 0 || candidates.every(el => !isVisible(el))) {
+      candidates = Array.from(document.body.querySelectorAll('*')).slice(0, 200);
+    }
 
     for (const el of candidates) {
-      if (!isVisible(el)) continue;
+      // Skip if completely hidden
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+
+      // Must be near the top (within 200px)
+      if (rect.top > 200) continue;
 
       const styles = getCachedComputedStyle(el);
-      const rect = el.getBoundingClientRect();
-
-      // Must be near the top
-      if (rect.top > 150) continue;
-
-      // Must be wide
-      if (rect.width < window.innerWidth * 0.5) continue;
 
       // Get actual dimensions
       const computedHeight = parseFloat(styles.height);
       const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
 
-      // Must be topbar-shaped: wide and short
-      if (actualHeight > 30 && actualHeight < 150) {
-        topbar = el;
-        break;
-      }
+      // Must be topbar-shaped: wide (at least 40% of viewport) and short (30-200px)
+      if (rect.width < window.innerWidth * 0.4) continue;
+      if (actualHeight < 30 || actualHeight > 200) continue;
+
+      // Found a topbar-shaped element!
+      topbar = el;
+      break;
     }
   }
 

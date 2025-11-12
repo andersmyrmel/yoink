@@ -180,6 +180,43 @@ export function extractCards(): CardVariant[] {
     }
   });
 
+  // Post-process: Rename duplicate variant names by adding distinguishing suffixes
+  const variantCounts = new Map<string, number>();
+  cards.forEach(card => {
+    const count = variantCounts.get(card.variant) || 0;
+    variantCounts.set(card.variant, count + 1);
+  });
+
+  // If a variant name appears multiple times, add border/padding suffixes
+  variantCounts.forEach((count, variantName) => {
+    if (count > 1) {
+      // Find all cards with this variant name and add distinguishing suffixes
+      const duplicates = cards.filter(c => c.variant === variantName);
+
+      // Sort by border width (thicker border first) then by padding
+      duplicates.sort((a, b) => {
+        const borderA = parseFloat((a.styles.border || '0px').toString());
+        const borderB = parseFloat((b.styles.border || '0px').toString());
+        if (borderA !== borderB) return borderB - borderA;
+
+        const paddingA = parseFloat((a.styles.padding || '0px').toString());
+        const paddingB = parseFloat((b.styles.padding || '0px').toString());
+        return paddingB - paddingA;
+      });
+
+      // Rename them with style suffixes
+      duplicates.forEach((card, index) => {
+        if (index === 0 && duplicates.length === 2) {
+          card.variant = `${variantName}-emphasized`;
+        } else if (index === 1 && duplicates.length === 2) {
+          card.variant = `${variantName}-subtle`;
+        } else {
+          card.variant = `${variantName}-${index + 1}`;
+        }
+      });
+    }
+  });
+
   return cards.sort((a, b) => b.count - a.count).slice(0, 10);
 }
 
