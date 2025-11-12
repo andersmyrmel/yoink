@@ -204,14 +204,34 @@ export function extractCards(): CardVariant[] {
         return paddingB - paddingA;
       });
 
-      // Rename them with style suffixes
+      // Rename them with meaningful style suffixes based on visual prominence
       duplicates.forEach((card, index) => {
-        if (index === 0 && duplicates.length === 2) {
-          card.variant = `${variantName}-emphasized`;
-        } else if (index === 1 && duplicates.length === 2) {
-          card.variant = `${variantName}-subtle`;
+        if (duplicates.length === 2) {
+          // Two variants: emphasized vs subtle
+          card.variant = index === 0 ? `${variantName}-emphasized` : `${variantName}-subtle`;
+        } else if (duplicates.length === 3) {
+          // Three variants: heavy, medium, light
+          const names = ['heavy', 'medium', 'light'];
+          card.variant = `${variantName}-${names[index]}`;
+        } else if (duplicates.length === 4) {
+          // Four variants: extra-heavy, heavy, medium, light
+          const names = ['extra-heavy', 'heavy', 'medium', 'light'];
+          card.variant = `${variantName}-${names[index]}`;
         } else {
-          card.variant = `${variantName}-${index + 1}`;
+          // 5+ variants: use prominence-based naming
+          const totalVariants = duplicates.length;
+          if (index === 0) {
+            card.variant = `${variantName}-extra-heavy`;
+          } else if (index === totalVariants - 1) {
+            card.variant = `${variantName}-subtle`;
+          } else if (index === 1) {
+            card.variant = `${variantName}-heavy`;
+          } else if (index === totalVariants - 2) {
+            card.variant = `${variantName}-light`;
+          } else {
+            // Middle variants get "medium" with optional number
+            card.variant = `${variantName}-medium${totalVariants > 5 ? `-${index}` : ''}`;
+          }
         }
       });
     }

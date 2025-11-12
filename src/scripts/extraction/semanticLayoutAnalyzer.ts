@@ -441,17 +441,129 @@ function extractLayoutRegions(): LayoutRegion[] {
 function extractLayoutMeasurements(): LayoutMeasurements {
   const measurements: LayoutMeasurements = {};
 
-  // Sidebar width
-  const sidebar = document.querySelector('aside, [class*="sidebar"]');
+  // Sidebar width - use same detection logic as extractLayoutRegions()
+  const sidebarSelectors = [
+    'aside:not([aria-hidden="true"])',
+    '[role="complementary"]:not([aria-hidden="true"])',
+    'nav[class*="sidebar"]:not([aria-hidden="true"])',
+    'nav[class*="side"]:not([aria-hidden="true"])',
+    '[class*="sidebar"]:not([aria-hidden="true"])',
+    '[class*="Sidebar"]:not([aria-hidden="true"])',
+    '[class*="side-bar"]:not([aria-hidden="true"])',
+    '[id*="sidebar"]:not([aria-hidden="true"])'
+  ];
+
+  let sidebar: Element | null = null;
+  for (const selector of sidebarSelectors) {
+    const el = document.querySelector(selector);
+    if (el && isVisible(el)) {
+      const rect = el.getBoundingClientRect();
+      const styles = getCachedComputedStyle(el);
+      const computedWidth = parseFloat(styles.width);
+      const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
+      if (actualWidth > 50 && actualWidth < 600) {
+        sidebar = el;
+        break;
+      }
+    }
+  }
+
+  // EXTREME Fallback: Use same brute force detection as regions
+  if (!sidebar) {
+    const allElements = Array.from(document.querySelectorAll('*'));
+    const sortedByPosition = allElements.sort((a, b) => {
+      const rectA = a.getBoundingClientRect();
+      const rectB = b.getBoundingClientRect();
+      return rectA.left - rectB.left;
+    });
+
+    for (const el of sortedByPosition.slice(0, 300)) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 50 || rect.height < 50) continue;
+
+      const styles = getCachedComputedStyle(el);
+      const computedWidth = parseFloat(styles.width);
+      const computedHeight = parseFloat(styles.height);
+      const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
+      const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+
+      if (actualWidth < 150 || actualWidth > 600) continue;
+      if (actualHeight < 200) continue;
+
+      const onLeftEdge = rect.left < 150;
+      const onRightEdge = rect.right > window.innerWidth - 150;
+      if (!onLeftEdge && !onRightEdge) continue;
+
+      sidebar = el;
+      break;
+    }
+  }
+
   if (sidebar) {
-    const width = parseFloat(getCachedComputedStyle(sidebar).width);
+    const styles = getCachedComputedStyle(sidebar);
+    const rect = sidebar.getBoundingClientRect();
+    const computedWidth = parseFloat(styles.width);
+    const width = computedWidth > 0 ? computedWidth : rect.width;
     if (width > 0) measurements.sidebarWidth = `${Math.round(width)}px`;
   }
 
-  // Topbar height
-  const topbar = document.querySelector('header, [class*="topbar"], [class*="header"]');
+  // Topbar height - use same detection logic as extractLayoutRegions()
+  const topbarSelectors = [
+    'header:not([aria-hidden="true"])',
+    '[role="banner"]:not([aria-hidden="true"])',
+    '[class*="topbar"]:not([aria-hidden="true"])',
+    '[class*="header"]:not([aria-hidden="true"])',
+    '[class*="navbar"]:not([aria-hidden="true"])',
+    '[class*="Header"]:not([aria-hidden="true"])',
+    '[id*="header"]:not([aria-hidden="true"])'
+  ];
+
+  let topbar: Element | null = null;
+  for (const selector of topbarSelectors) {
+    const el = document.querySelector(selector);
+    if (el && isVisible(el)) {
+      const rect = el.getBoundingClientRect();
+      const styles = getCachedComputedStyle(el);
+      const computedHeight = parseFloat(styles.height);
+      const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+      if (rect.top < 150 && rect.width > window.innerWidth * 0.4 && actualHeight > 20 && actualHeight < 300) {
+        topbar = el;
+        break;
+      }
+    }
+  }
+
+  // EXTREME Fallback: Use same brute force detection as regions
+  if (!topbar) {
+    const allElements = Array.from(document.querySelectorAll('*'));
+    const sortedByPosition = allElements.sort((a, b) => {
+      const rectA = a.getBoundingClientRect();
+      const rectB = b.getBoundingClientRect();
+      return rectA.top - rectB.top;
+    });
+
+    for (const el of sortedByPosition.slice(0, 300)) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 50 || rect.height < 20) continue;
+      if (rect.top > 250) continue;
+
+      const styles = getCachedComputedStyle(el);
+      const computedHeight = parseFloat(styles.height);
+      const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+
+      if (rect.width < window.innerWidth * 0.3) continue;
+      if (actualHeight < 20 || actualHeight > 250) continue;
+
+      topbar = el;
+      break;
+    }
+  }
+
   if (topbar) {
-    const height = parseFloat(getCachedComputedStyle(topbar).height);
+    const styles = getCachedComputedStyle(topbar);
+    const rect = topbar.getBoundingClientRect();
+    const computedHeight = parseFloat(styles.height);
+    const height = computedHeight > 0 ? computedHeight : rect.height;
     if (height > 0) measurements.topbarHeight = `${Math.round(height)}px`;
   }
 
