@@ -99,31 +99,37 @@ export function extractSidebars(): ComponentVariant[] {
     });
   }
 
-  // Fallback: Aggressive visual detection
+  // EXTREME Fallback: Brute force visual detection
   if (sidebars.length === 0) {
-    let candidates = Array.from(document.body.children);
+    const allElements = Array.from(document.querySelectorAll('*'));
 
-    if (candidates.length === 0) {
-      candidates = Array.from(document.body.querySelectorAll('*')).slice(0, 200);
-    }
+    // Sort by left position (leftmost first)
+    const sortedByPosition = allElements.sort((a, b) => {
+      const rectA = a.getBoundingClientRect();
+      const rectB = b.getBoundingClientRect();
+      return rectA.left - rectB.left;
+    });
 
-    for (const el of candidates) {
+    for (const el of sortedByPosition.slice(0, 300)) {
       const rect = el.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) continue;
+      if (rect.width < 50 || rect.height < 50) continue;
 
       const styles = getCachedComputedStyle(el);
 
-      // Get actual dimensions
+      // Get dimensions
       const computedWidth = parseFloat(styles.width);
       const computedHeight = parseFloat(styles.height);
       const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
       const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
 
-      // Must be sidebar-shaped: narrow (100-500px) and tall (300px+)
-      if (actualWidth < 100 || actualWidth > 500 || actualHeight < 300) continue;
+      // Sidebar-like: 150-600px wide, 200px+ tall
+      if (actualWidth < 150 || actualWidth > 600) continue;
+      if (actualHeight < 200) continue;
 
-      // Must be on the left or right edge (within 50px)
-      if (rect.left > 50 && rect.right < window.innerWidth - 50) continue;
+      // Must be on left or right edge
+      const onLeftEdge = rect.left < 150;
+      const onRightEdge = rect.right > window.innerWidth - 150;
+      if (!onLeftEdge && !onRightEdge) continue;
 
       const position = rect.left < 100 ? 'left' : 'right';
 
@@ -142,7 +148,7 @@ export function extractSidebars(): ComponentVariant[] {
           zIndex: styles.zIndex !== 'auto' ? styles.zIndex : undefined
         }
       });
-      break; // Only take the first one found
+      break;
     }
   }
 
@@ -233,30 +239,33 @@ export function extractTopbars(): ComponentVariant[] {
     });
   }
 
-  // Fallback: Aggressive visual detection
+  // EXTREME Fallback: Brute force visual detection
   if (topbars.length === 0) {
-    let candidates = Array.from(document.body.children);
+    const allElements = Array.from(document.querySelectorAll('*'));
 
-    if (candidates.length === 0) {
-      candidates = Array.from(document.body.querySelectorAll('*')).slice(0, 200);
-    }
+    // Sort by top position (topmost first)
+    const sortedByPosition = allElements.sort((a, b) => {
+      const rectA = a.getBoundingClientRect();
+      const rectB = b.getBoundingClientRect();
+      return rectA.top - rectB.top;
+    });
 
-    for (const el of candidates) {
+    for (const el of sortedByPosition.slice(0, 300)) {
       const rect = el.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) continue;
+      if (rect.width < 50 || rect.height < 20) continue;
 
-      // Must be near the top (within 200px)
-      if (rect.top > 200) continue;
+      // Must be near the top
+      if (rect.top > 250) continue;
 
       const styles = getCachedComputedStyle(el);
 
-      // Get actual dimensions
+      // Get dimensions
       const computedHeight = parseFloat(styles.height);
       const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
 
-      // Must be topbar-shaped: wide (at least 40% of viewport) and short (30-200px)
-      if (rect.width < window.innerWidth * 0.4) continue;
-      if (actualHeight < 30 || actualHeight > 200) continue;
+      // Topbar-like: wide (30%+ viewport) and short (20-250px)
+      if (rect.width < window.innerWidth * 0.3) continue;
+      if (actualHeight < 20 || actualHeight > 250) continue;
 
       topbars.push({
         variant: 'topbar',
@@ -274,7 +283,7 @@ export function extractTopbars(): ComponentVariant[] {
           zIndex: styles.zIndex !== 'auto' ? styles.zIndex : undefined
         }
       });
-      break; // Only take the first one found
+      break;
     }
   }
 

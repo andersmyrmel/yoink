@@ -193,37 +193,43 @@ function extractLayoutRegions(): LayoutRegion[] {
     }
   }
 
-  // Fallback: Aggressive visual detection
-  // Scan ALL elements looking for sidebar-shaped elements on the left/right edge
+  // EXTREME Fallback: Brute force find ANY sidebar-like element
+  // This will find it even if nothing else works
   if (!sidebar) {
-    // Start with body children (most likely), then expand if needed
-    let candidates = Array.from(document.body.children);
+    const allElements = Array.from(document.querySelectorAll('*'));
 
-    // If no direct children work, try grandchildren too
-    if (candidates.length === 0 || candidates.every(el => !isVisible(el))) {
-      candidates = Array.from(document.body.querySelectorAll('*')).slice(0, 200); // Limit to first 200 to avoid performance issues
-    }
+    // Sort by left position (leftmost first) to prioritize left sidebar
+    const sortedByPosition = allElements.sort((a, b) => {
+      const rectA = a.getBoundingClientRect();
+      const rectB = b.getBoundingClientRect();
+      return rectA.left - rectB.left;
+    });
 
-    for (const el of candidates) {
-      // Skip if completely hidden
+    for (const el of sortedByPosition.slice(0, 300)) {
       const rect = el.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) continue;
+
+      // Must have some size
+      if (rect.width < 50 || rect.height < 50) continue;
 
       const styles = getCachedComputedStyle(el);
 
-      // Get actual dimensions
+      // Get dimensions
       const computedWidth = parseFloat(styles.width);
       const computedHeight = parseFloat(styles.height);
       const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
       const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
 
-      // Must be sidebar-shaped: narrow (100-500px) and tall (300px+)
-      if (actualWidth < 100 || actualWidth > 500 || actualHeight < 300) continue;
+      // Sidebar-like: 150-600px wide, 200px+ tall
+      if (actualWidth < 150 || actualWidth > 600) continue;
+      if (actualHeight < 200) continue;
 
-      // Must be on the left or right edge (within 50px)
-      if (rect.left > 50 && rect.right < window.innerWidth - 50) continue;
+      // Must be on left or right edge
+      const onLeftEdge = rect.left < 150;
+      const onRightEdge = rect.right > window.innerWidth - 150;
 
-      // Found a sidebar-shaped element!
+      if (!onLeftEdge && !onRightEdge) continue;
+
+      // This is probably a sidebar!
       sidebar = el;
       break;
     }
@@ -295,34 +301,37 @@ function extractLayoutRegions(): LayoutRegion[] {
     }
   }
 
-  // Fallback: Aggressive visual detection for topbar
+  // EXTREME Fallback: Brute force find ANY topbar-like element
   if (!topbar) {
-    // Start with body children (most likely), then expand if needed
-    let candidates = Array.from(document.body.children);
+    const allElements = Array.from(document.querySelectorAll('*'));
 
-    if (candidates.length === 0 || candidates.every(el => !isVisible(el))) {
-      candidates = Array.from(document.body.querySelectorAll('*')).slice(0, 200);
-    }
+    // Sort by top position (topmost first)
+    const sortedByPosition = allElements.sort((a, b) => {
+      const rectA = a.getBoundingClientRect();
+      const rectB = b.getBoundingClientRect();
+      return rectA.top - rectB.top;
+    });
 
-    for (const el of candidates) {
-      // Skip if completely hidden
+    for (const el of sortedByPosition.slice(0, 300)) {
       const rect = el.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) continue;
 
-      // Must be near the top (within 200px)
-      if (rect.top > 200) continue;
+      // Must have some size
+      if (rect.width < 50 || rect.height < 20) continue;
+
+      // Must be near the top
+      if (rect.top > 250) continue;
 
       const styles = getCachedComputedStyle(el);
 
-      // Get actual dimensions
+      // Get dimensions
       const computedHeight = parseFloat(styles.height);
       const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
 
-      // Must be topbar-shaped: wide (at least 40% of viewport) and short (30-200px)
-      if (rect.width < window.innerWidth * 0.4) continue;
-      if (actualHeight < 30 || actualHeight > 200) continue;
+      // Topbar-like: wide (30%+ viewport) and short (20-250px)
+      if (rect.width < window.innerWidth * 0.3) continue;
+      if (actualHeight < 20 || actualHeight > 250) continue;
 
-      // Found a topbar-shaped element!
+      // This is probably a topbar!
       topbar = el;
       break;
     }
