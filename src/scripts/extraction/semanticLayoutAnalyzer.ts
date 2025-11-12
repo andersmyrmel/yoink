@@ -450,7 +450,9 @@ function extractLayoutMeasurements(): LayoutMeasurements {
     '[class*="sidebar"]:not([aria-hidden="true"])',
     '[class*="Sidebar"]:not([aria-hidden="true"])',
     '[class*="side-bar"]:not([aria-hidden="true"])',
-    '[id*="sidebar"]:not([aria-hidden="true"])'
+    '[class*="sidenav"]:not([aria-hidden="true"])',
+    '[id*="sidebar"]:not([aria-hidden="true"])',
+    '[id*="sidenav"]:not([aria-hidden="true"])'
   ];
 
   let sidebar: Element | null = null;
@@ -460,8 +462,11 @@ function extractLayoutMeasurements(): LayoutMeasurements {
       const rect = el.getBoundingClientRect();
       const styles = getCachedComputedStyle(el);
       const computedWidth = parseFloat(styles.width);
+      const computedHeight = parseFloat(styles.height);
       const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
-      if (actualWidth > 50 && actualWidth < 600) {
+      const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+      // Same validation as extractLayoutRegions(): 50-600px width, 100px+ height
+      if (actualWidth > 50 && actualWidth < 600 && actualHeight > 100) {
         sidebar = el;
         break;
       }
@@ -515,7 +520,9 @@ function extractLayoutMeasurements(): LayoutMeasurements {
     '[class*="header"]:not([aria-hidden="true"])',
     '[class*="navbar"]:not([aria-hidden="true"])',
     '[class*="Header"]:not([aria-hidden="true"])',
-    '[id*="header"]:not([aria-hidden="true"])'
+    '[class*="nav-bar"]:not([aria-hidden="true"])',
+    '[id*="header"]:not([aria-hidden="true"])',
+    '[id*="topbar"]:not([aria-hidden="true"])'
   ];
 
   let topbar: Element | null = null;

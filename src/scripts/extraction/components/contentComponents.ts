@@ -204,35 +204,80 @@ export function extractCards(): CardVariant[] {
         return paddingB - paddingA;
       });
 
-      // Rename them with meaningful style suffixes based on visual prominence
+      // Rename them with meaningful style suffixes - analyze visual characteristics
       duplicates.forEach((card, index) => {
-        if (duplicates.length === 2) {
-          // Two variants: emphasized vs subtle
-          card.variant = index === 0 ? `${variantName}-emphasized` : `${variantName}-subtle`;
-        } else if (duplicates.length === 3) {
-          // Three variants: heavy, medium, light
-          const names = ['heavy', 'medium', 'light'];
-          card.variant = `${variantName}-${names[index]}`;
-        } else if (duplicates.length === 4) {
-          // Four variants: extra-heavy, heavy, medium, light
-          const names = ['extra-heavy', 'heavy', 'medium', 'light'];
-          card.variant = `${variantName}-${names[index]}`;
-        } else {
-          // 5+ variants: use prominence-based naming
-          const totalVariants = duplicates.length;
-          if (index === 0) {
-            card.variant = `${variantName}-extra-heavy`;
-          } else if (index === totalVariants - 1) {
-            card.variant = `${variantName}-subtle`;
-          } else if (index === 1) {
-            card.variant = `${variantName}-heavy`;
-          } else if (index === totalVariants - 2) {
-            card.variant = `${variantName}-light`;
-          } else {
-            // Middle variants get "medium" with optional number
-            card.variant = `${variantName}-medium${totalVariants > 5 ? `-${index}` : ''}`;
+        const styles = card.styles;
+        const border = parseFloat((styles.border || '0px').toString());
+        const padding = parseFloat((styles.padding || '0px').toString());
+        const hasShadow = styles.boxShadow && styles.boxShadow !== 'none';
+        const hasBackground = styles.background && styles.background !== 'rgba(0, 0, 0, 0)' && styles.background !== 'transparent';
+
+        // Analyze visual weight to create descriptive suffix
+        let suffix = '';
+
+        // Primary characteristic: border
+        if (border > 1.5) {
+          suffix = 'thick-border';
+        } else if (border > 0) {
+          suffix = 'thin-border';
+        }
+
+        // Secondary characteristic: padding
+        if (!suffix) {
+          if (padding > 12) {
+            suffix = 'padded';
+          } else if (padding > 0) {
+            suffix = 'compact';
           }
         }
+
+        // Tertiary: shadow
+        if (!suffix && hasShadow) {
+          suffix = 'elevated';
+        }
+
+        // Quaternary: background
+        if (!suffix && hasBackground) {
+          suffix = 'filled';
+        }
+
+        // If still no distinguishing feature, fall back to prominence-based names
+        if (!suffix) {
+          if (duplicates.length === 2) {
+            suffix = index === 0 ? 'emphasized' : 'subtle';
+          } else if (duplicates.length === 3) {
+            suffix = ['heavy', 'medium', 'light'][index];
+          } else if (index === 0) {
+            suffix = 'extra-heavy';
+          } else if (index === 1) {
+            suffix = 'heavy';
+          } else if (index === duplicates.length - 1) {
+            suffix = 'subtle';
+          } else if (index === duplicates.length - 2) {
+            suffix = 'light';
+          } else {
+            // Last resort for middle variants: use ordinal names
+            const ordinals = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
+            suffix = ordinals[index] || `variant-${index + 1}`;
+          }
+        }
+
+        // Check if suffix is already used by another card in this set
+        const proposedName = `${variantName}-${suffix}`;
+        const alreadyUsed = cards.some(c => c !== card && c.variant === proposedName);
+
+        if (alreadyUsed) {
+          // Add secondary qualifier
+          if (padding > 8) {
+            suffix = `${suffix}-padded`;
+          } else if (padding > 0) {
+            suffix = `${suffix}-compact`;
+          } else {
+            suffix = `${suffix}-${index + 1}`;
+          }
+        }
+
+        card.variant = `${variantName}-${suffix}`;
       });
     }
   });
