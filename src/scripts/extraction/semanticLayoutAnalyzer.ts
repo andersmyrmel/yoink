@@ -171,75 +171,79 @@ function extractLayoutRegions(): LayoutRegion[] {
     '[id*="sidenav"]:not([aria-hidden="true"])'
   ];
 
-  // Collect ALL sidebar candidates and choose the tallest one
-  const sidebarCandidates: { element: Element; height: number; width: number }[] = [];
+  // STRATEGY 1: Prioritize full-viewport-height elements on left edge
+  // This catches sidebars that don't match semantic selectors
+  const viewportHeightCandidates: { element: Element; height: number; width: number; score: number }[] = [];
+  const allElements = Array.from(document.querySelectorAll('*'));
 
-  for (const selector of sidebarSelectors) {
-    const el = document.querySelector(selector);
-    if (el && isVisible(el)) {
-      const rect = el.getBoundingClientRect();
-      const styles = getCachedComputedStyle(el);
+  for (const el of allElements.slice(0, 1000)) {
+    const rect = el.getBoundingClientRect();
+    const styles = getCachedComputedStyle(el);
 
-      // Get actual dimensions (prefer computed styles over rect)
-      const computedWidth = parseFloat(styles.width);
-      const computedHeight = parseFloat(styles.height);
-      const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
-      const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+    // Must be on left edge (within 200px of left side)
+    if (rect.left > 200) continue;
 
-      // Validate it's actually sidebar-like (narrow vertical section)
-      // Stricter height requirement to avoid nested sections: 50px-600px width, 400px+ height
-      // This ensures we get the main sidebar container, not nested navigation sections
-      if (actualWidth > 50 && actualWidth < 600 && actualHeight > 400) {
-        sidebarCandidates.push({ element: el, height: actualHeight, width: actualWidth });
+    // Get actual dimensions
+    const computedWidth = parseFloat(styles.width);
+    const computedHeight = parseFloat(styles.height);
+    const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
+    const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+
+    // Must be sidebar-like width (100-600px)
+    if (actualWidth < 100 || actualWidth > 600) continue;
+
+    // Calculate how close to full viewport height (percentage)
+    const heightRatio = actualHeight / window.innerHeight;
+
+    // Must be at least 70% of viewport height to be considered
+    if (heightRatio < 0.7) continue;
+
+    // Score based on height ratio (prefer taller elements)
+    // Also boost score if element has sidebar-related class/id
+    const classNameStr = String(el.className || '').toLowerCase();
+    const idStr = String(el.id || '').toLowerCase();
+    const hasSidebarName = classNameStr.includes('sidebar') || classNameStr.includes('sidenav') ||
+                          idStr.includes('sidebar') || idStr.includes('sidenav');
+
+    const score = heightRatio * (hasSidebarName ? 1.5 : 1.0);
+
+    viewportHeightCandidates.push({ element: el, height: actualHeight, width: actualWidth, score });
+  }
+
+  // Choose highest scoring candidate (tallest + semantic naming)
+  let sidebar: Element | null = null;
+  if (viewportHeightCandidates.length > 0) {
+    viewportHeightCandidates.sort((a, b) => b.score - a.score);
+    sidebar = viewportHeightCandidates[0].element;
+  }
+
+  // STRATEGY 2: Try semantic selectors if viewport strategy failed
+  if (!sidebar) {
+    const sidebarCandidates: { element: Element; height: number; width: number }[] = [];
+
+    for (const selector of sidebarSelectors) {
+      const el = document.querySelector(selector);
+      if (el && isVisible(el)) {
+        const rect = el.getBoundingClientRect();
+        const styles = getCachedComputedStyle(el);
+
+        // Get actual dimensions
+        const computedWidth = parseFloat(styles.width);
+        const computedHeight = parseFloat(styles.height);
+        const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
+        const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+
+        // Validate it's sidebar-like (narrow vertical section)
+        if (actualWidth > 50 && actualWidth < 600 && actualHeight > 100) {
+          sidebarCandidates.push({ element: el, height: actualHeight, width: actualWidth });
+        }
       }
     }
-  }
 
-  // Choose the TALLEST sidebar candidate (most likely to be the main sidebar)
-  let sidebar: Element | null = null;
-  if (sidebarCandidates.length > 0) {
-    sidebarCandidates.sort((a, b) => b.height - a.height);
-    sidebar = sidebarCandidates[0].element;
-  }
-
-  // EXTREME Fallback: Brute force find ANY sidebar-like element
-  // This will find it even if nothing else works
-  if (!sidebar) {
-    const allElements = Array.from(document.querySelectorAll('*'));
-    const fallbackCandidates: { element: Element; height: number }[] = [];
-
-    for (const el of allElements.slice(0, 500)) {
-      const rect = el.getBoundingClientRect();
-
-      // Must have some size
-      if (rect.width < 50 || rect.height < 50) continue;
-
-      const styles = getCachedComputedStyle(el);
-
-      // Get dimensions
-      const computedWidth = parseFloat(styles.width);
-      const computedHeight = parseFloat(styles.height);
-      const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
-      const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
-
-      // Sidebar-like: 150-600px wide, 200px+ tall
-      if (actualWidth < 150 || actualWidth > 600) continue;
-      if (actualHeight < 200) continue;
-
-      // Must be on left or right edge
-      const onLeftEdge = rect.left < 150;
-      const onRightEdge = rect.right > window.innerWidth - 150;
-
-      if (!onLeftEdge && !onRightEdge) continue;
-
-      // This is probably a sidebar - add to candidates
-      fallbackCandidates.push({ element: el, height: actualHeight });
-    }
-
-    // Choose the TALLEST fallback candidate (same as primary selection)
-    if (fallbackCandidates.length > 0) {
-      fallbackCandidates.sort((a, b) => b.height - a.height);
-      sidebar = fallbackCandidates[0].element;
+    // Choose the TALLEST sidebar candidate
+    if (sidebarCandidates.length > 0) {
+      sidebarCandidates.sort((a, b) => b.height - a.height);
+      sidebar = sidebarCandidates[0].element;
     }
   }
 
@@ -492,61 +496,75 @@ function extractLayoutMeasurements(): LayoutMeasurements {
     '[id*="sidenav"]:not([aria-hidden="true"])'
   ];
 
-  // Collect ALL sidebar candidates and choose the tallest one (same logic as extractLayoutRegions)
-  const sidebarCandidates: { element: Element; height: number }[] = [];
+  // STRATEGY 1: Prioritize full-viewport-height elements on left edge (same as extractLayoutRegions)
+  const viewportHeightCandidates: { element: Element; height: number; score: number }[] = [];
+  const allElements = Array.from(document.querySelectorAll('*'));
 
-  for (const selector of sidebarSelectors) {
-    const el = document.querySelector(selector);
-    if (el && isVisible(el)) {
-      const rect = el.getBoundingClientRect();
-      const styles = getCachedComputedStyle(el);
-      const computedWidth = parseFloat(styles.width);
-      const computedHeight = parseFloat(styles.height);
-      const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
-      const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
-      // Same validation as extractLayoutRegions(): 50-600px width, 400px+ height
-      if (actualWidth > 50 && actualWidth < 600 && actualHeight > 400) {
-        sidebarCandidates.push({ element: el, height: actualHeight });
+  for (const el of allElements.slice(0, 1000)) {
+    const rect = el.getBoundingClientRect();
+    const styles = getCachedComputedStyle(el);
+
+    // Must be on left edge (within 200px of left side)
+    if (rect.left > 200) continue;
+
+    // Get actual dimensions
+    const computedWidth = parseFloat(styles.width);
+    const computedHeight = parseFloat(styles.height);
+    const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
+    const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+
+    // Must be sidebar-like width (100-600px)
+    if (actualWidth < 100 || actualWidth > 600) continue;
+
+    // Calculate how close to full viewport height
+    const heightRatio = actualHeight / window.innerHeight;
+
+    // Must be at least 70% of viewport height
+    if (heightRatio < 0.7) continue;
+
+    // Score based on height ratio + semantic naming
+    const classNameStr = String(el.className || '').toLowerCase();
+    const idStr = String(el.id || '').toLowerCase();
+    const hasSidebarName = classNameStr.includes('sidebar') || classNameStr.includes('sidenav') ||
+                          idStr.includes('sidebar') || idStr.includes('sidenav');
+
+    const score = heightRatio * (hasSidebarName ? 1.5 : 1.0);
+
+    viewportHeightCandidates.push({ element: el, height: actualHeight, score });
+  }
+
+  // Choose highest scoring candidate
+  let sidebar: Element | null = null;
+  if (viewportHeightCandidates.length > 0) {
+    viewportHeightCandidates.sort((a, b) => b.score - a.score);
+    sidebar = viewportHeightCandidates[0].element;
+  }
+
+  // STRATEGY 2: Try semantic selectors if viewport strategy failed
+  if (!sidebar) {
+    const sidebarCandidates: { element: Element; height: number }[] = [];
+
+    for (const selector of sidebarSelectors) {
+      const el = document.querySelector(selector);
+      if (el && isVisible(el)) {
+        const rect = el.getBoundingClientRect();
+        const styles = getCachedComputedStyle(el);
+        const computedWidth = parseFloat(styles.width);
+        const computedHeight = parseFloat(styles.height);
+        const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
+        const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+
+        // Validate it's sidebar-like
+        if (actualWidth > 50 && actualWidth < 600 && actualHeight > 100) {
+          sidebarCandidates.push({ element: el, height: actualHeight });
+        }
       }
     }
-  }
 
-  // Choose the TALLEST sidebar candidate
-  let sidebar: Element | null = null;
-  if (sidebarCandidates.length > 0) {
-    sidebarCandidates.sort((a, b) => b.height - a.height);
-    sidebar = sidebarCandidates[0].element;
-  }
-
-  // EXTREME Fallback: Use same brute force detection as regions
-  if (!sidebar) {
-    const allElements = Array.from(document.querySelectorAll('*'));
-    const fallbackCandidates: { element: Element; height: number }[] = [];
-
-    for (const el of allElements.slice(0, 500)) {
-      const rect = el.getBoundingClientRect();
-      if (rect.width < 50 || rect.height < 50) continue;
-
-      const styles = getCachedComputedStyle(el);
-      const computedWidth = parseFloat(styles.width);
-      const computedHeight = parseFloat(styles.height);
-      const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
-      const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
-
-      if (actualWidth < 150 || actualWidth > 600) continue;
-      if (actualHeight < 200) continue;
-
-      const onLeftEdge = rect.left < 150;
-      const onRightEdge = rect.right > window.innerWidth - 150;
-      if (!onLeftEdge && !onRightEdge) continue;
-
-      fallbackCandidates.push({ element: el, height: actualHeight });
-    }
-
-    // Choose the TALLEST fallback candidate
-    if (fallbackCandidates.length > 0) {
-      fallbackCandidates.sort((a, b) => b.height - a.height);
-      sidebar = fallbackCandidates[0].element;
+    // Choose the TALLEST sidebar candidate
+    if (sidebarCandidates.length > 0) {
+      sidebarCandidates.sort((a, b) => b.height - a.height);
+      sidebar = sidebarCandidates[0].element;
     }
   }
 
