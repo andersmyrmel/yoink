@@ -177,7 +177,7 @@ function isNavigationLink(element: Element): boolean {
   }
 
   // Check for navigation-specific classes
-  const classes = (element as HTMLElement).className?.toLowerCase() || '';
+  const classes = String(element.className || '').toLowerCase();
   const navClasses = ['nav-link', 'menu-item', 'breadcrumb', 'tab', 'nav-item', 'navbar'];
   if (navClasses.some(nc => classes.includes(nc))) {
     return true;
@@ -207,7 +207,7 @@ function isNavigationLink(element: Element): boolean {
  */
 function isActualButton(element: Element): boolean {
   const tag = element.tagName;
-  const classes = (element as HTMLElement).className?.toLowerCase() || '';
+  const classes = String(element.className || '').toLowerCase();
   const styles = getComputedStyle(element);
 
   // Rule 1: <button> tags are always buttons
@@ -542,8 +542,8 @@ export function extractProgress(): ProgressComponent[] {
         borderRadius: styles.borderRadius
       };
 
-      const isSpinner = el.className.toLowerCase().includes('spinner') ||
-                       el.className.toLowerCase().includes('loader');
+      const elClassName = String(el.className || '').toLowerCase();
+      const isSpinner = elClassName.includes('spinner') || elClassName.includes('loader');
 
       const variant: ProgressComponent = {
         html: getCleanHTML(el),
@@ -777,7 +777,7 @@ function parseOKLAB(color: string): { r: number; g: number; b: number } | null {
  * @returns Inferred variant string (e.g., 'primary', 'outline-small', 'danger-large')
  */
 function inferVariant(button: HTMLElement): string {
-  const classes = button.className.toLowerCase();
+  const classes = String(button.className || '').toLowerCase();
   const styles = getComputedStyle(button);
   const text = button.textContent?.toLowerCase() || '';
 

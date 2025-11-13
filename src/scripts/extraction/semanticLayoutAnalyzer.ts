@@ -171,67 +171,92 @@ function extractLayoutRegions(): LayoutRegion[] {
     '[id*="sidenav"]:not([aria-hidden="true"])'
   ];
 
-  let sidebar: Element | null = null;
-  for (const selector of sidebarSelectors) {
-    const el = document.querySelector(selector);
-    if (el && isVisible(el)) {
-      const rect = el.getBoundingClientRect();
-      const styles = getCachedComputedStyle(el);
+  // STRATEGY 1: Look for left-edge containers that have navigation elements
+  // This is more reliable than height-based detection for CSS-in-JS layouts
+  const navigationContainers: { element: Element; height: number; width: number; score: number }[] = [];
+  const allElements = Array.from(document.querySelectorAll('*'));
 
-      // Get actual dimensions (prefer computed styles over rect)
-      const computedWidth = parseFloat(styles.width);
-      const computedHeight = parseFloat(styles.height);
-      const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
-      const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+  for (const el of allElements.slice(0, 1500)) {
+    // CRITICAL: Check visibility first to avoid hidden elements
+    if (!isVisible(el)) continue;
 
-      // Validate it's actually sidebar-like (narrow vertical section)
-      // More lenient: 50px-600px width, 100px+ height
-      if (actualWidth > 50 && actualWidth < 600 && actualHeight > 100) {
-        sidebar = el;
-        break;
-      }
+    const rect = el.getBoundingClientRect();
+    const styles = getCachedComputedStyle(el);
+
+    // Must be on far left edge (within 50px of left side)
+    if (rect.left > 50) continue;
+
+    // Get actual dimensions
+    const computedWidth = parseFloat(styles.width);
+    const computedHeight = parseFloat(styles.height);
+    const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
+    const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+
+    // Must be sidebar-like width (150-400px is more typical for sidebars)
+    if (actualWidth < 150 || actualWidth > 400) continue;
+
+    // Must have some height (at least 200px)
+    if (actualHeight < 200) continue;
+
+    // Check if this element contains navigation elements (strong indicator of sidebar)
+    const hasNav = el.querySelector('nav, [role="navigation"], a[href], button');
+    const navLinks = el.querySelectorAll('a[href], button');
+    const navLinkCount = navLinks.length;
+
+    // Score based on:
+    // 1. Number of navigation links (more = higher score)
+    // 2. Height (taller = higher score)
+    // 3. Has semantic naming (bonus)
+    const classNameStr = String(el.className || '').toLowerCase();
+    const idStr = String(el.id || '').toLowerCase();
+    const hasSidebarName = classNameStr.includes('sidebar') || classNameStr.includes('sidenav') ||
+                          idStr.includes('sidebar') || idStr.includes('sidenav');
+
+    let score = 0;
+    if (hasNav) score += 10;
+    if (navLinkCount > 5) score += navLinkCount * 2; // Boost for many nav links
+    if (hasSidebarName) score += 20;
+    score += actualHeight / 100; // Height contributes to score
+
+    if (score > 10) {
+      navigationContainers.push({ element: el, height: actualHeight, width: actualWidth, score });
     }
   }
 
-  // EXTREME Fallback: Brute force find ANY sidebar-like element
-  // This will find it even if nothing else works
+  // Choose highest scoring candidate (most likely sidebar based on navigation content)
+  let sidebar: Element | null = null;
+  if (navigationContainers.length > 0) {
+    navigationContainers.sort((a, b) => b.score - a.score);
+    sidebar = navigationContainers[0].element;
+  }
+
+  // STRATEGY 2: Try semantic selectors if viewport strategy failed
   if (!sidebar) {
-    const allElements = Array.from(document.querySelectorAll('*'));
+    const sidebarCandidates: { element: Element; height: number; width: number }[] = [];
 
-    // Sort by left position (leftmost first) to prioritize left sidebar
-    const sortedByPosition = allElements.sort((a, b) => {
-      const rectA = a.getBoundingClientRect();
-      const rectB = b.getBoundingClientRect();
-      return rectA.left - rectB.left;
-    });
+    for (const selector of sidebarSelectors) {
+      const el = document.querySelector(selector);
+      if (el && isVisible(el)) {
+        const rect = el.getBoundingClientRect();
+        const styles = getCachedComputedStyle(el);
 
-    for (const el of sortedByPosition.slice(0, 300)) {
-      const rect = el.getBoundingClientRect();
+        // Get actual dimensions
+        const computedWidth = parseFloat(styles.width);
+        const computedHeight = parseFloat(styles.height);
+        const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
+        const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
 
-      // Must have some size
-      if (rect.width < 50 || rect.height < 50) continue;
+        // Validate it's sidebar-like (narrow vertical section)
+        if (actualWidth > 50 && actualWidth < 600 && actualHeight > 100) {
+          sidebarCandidates.push({ element: el, height: actualHeight, width: actualWidth });
+        }
+      }
+    }
 
-      const styles = getCachedComputedStyle(el);
-
-      // Get dimensions
-      const computedWidth = parseFloat(styles.width);
-      const computedHeight = parseFloat(styles.height);
-      const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
-      const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
-
-      // Sidebar-like: 150-600px wide, 200px+ tall
-      if (actualWidth < 150 || actualWidth > 600) continue;
-      if (actualHeight < 200) continue;
-
-      // Must be on left or right edge
-      const onLeftEdge = rect.left < 150;
-      const onRightEdge = rect.right > window.innerWidth - 150;
-
-      if (!onLeftEdge && !onRightEdge) continue;
-
-      // This is probably a sidebar!
-      sidebar = el;
-      break;
+    // Choose the TALLEST sidebar candidate
+    if (sidebarCandidates.length > 0) {
+      sidebarCandidates.sort((a, b) => b.height - a.height);
+      sidebar = sidebarCandidates[0].element;
     }
   }
 
@@ -256,12 +281,41 @@ function extractLayoutRegions(): LayoutRegion[] {
     const width = computedWidth > 0 ? computedWidth : rect.width;
     const height = computedHeight > 0 ? computedHeight : rect.height;
 
+    // Detect if height is 100vh (full viewport height)
+    // Check if height is >= 90% of viewport height OR if element explicitly uses 100vh
+    let heightStr: string;
+    const isFullViewportHeight = height >= window.innerHeight * 0.9;
+
+    // Check inline styles for vh units
+    const inlineStyle = (sidebar as HTMLElement).style;
+    const hasExplicitVh = inlineStyle?.height?.includes('vh') ||
+                         inlineStyle?.minHeight?.includes('vh') ||
+                         inlineStyle?.maxHeight?.includes('vh');
+
+    // Check if positioned/flexed to fill viewport (common patterns)
+    const isPositionedFullHeight = (
+      (styles.position === 'fixed' || styles.position === 'absolute' || styles.position === 'sticky') &&
+      (styles.top === '0px' || parseFloat(styles.top) < 50) &&
+      (styles.bottom === '0px' || parseFloat(styles.bottom) < 50)
+    );
+
+    const isFlexFillHeight = (
+      styles.flexGrow === '1' ||
+      (sidebar.parentElement && getCachedComputedStyle(sidebar.parentElement).display === 'flex')
+    );
+
+    if (isFullViewportHeight || hasExplicitVh || isPositionedFullHeight || isFlexFillHeight) {
+      heightStr = '100vh';
+    } else {
+      heightStr = `${Math.round(height)}px`;
+    }
+
     regions.push({
       name: 'sidebar',
       role: 'navigation',
       position,
       width: `${Math.round(width)}px`,
-      height: `${Math.round(height)}px`,
+      height: heightStr,
       contains: contains.length > 0 ? contains : ['navigation'],
       background: styles.backgroundColor !== 'rgba(0, 0, 0, 0)' ? styles.backgroundColor : undefined,
       zIndex: styles.zIndex !== 'auto' ? styles.zIndex : undefined
@@ -455,52 +509,86 @@ function extractLayoutMeasurements(): LayoutMeasurements {
     '[id*="sidenav"]:not([aria-hidden="true"])'
   ];
 
-  let sidebar: Element | null = null;
-  for (const selector of sidebarSelectors) {
-    const el = document.querySelector(selector);
-    if (el && isVisible(el)) {
-      const rect = el.getBoundingClientRect();
-      const styles = getCachedComputedStyle(el);
-      const computedWidth = parseFloat(styles.width);
-      const computedHeight = parseFloat(styles.height);
-      const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
-      const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
-      // Same validation as extractLayoutRegions(): 50-600px width, 100px+ height
-      if (actualWidth > 50 && actualWidth < 600 && actualHeight > 100) {
-        sidebar = el;
-        break;
-      }
+  // STRATEGY 1: Look for left-edge containers with navigation (same as extractLayoutRegions)
+  const navigationContainers: { element: Element; height: number; score: number }[] = [];
+  const allElements = Array.from(document.querySelectorAll('*'));
+
+  for (const el of allElements.slice(0, 1500)) {
+    // CRITICAL: Check visibility first to avoid hidden elements
+    if (!isVisible(el)) continue;
+
+    const rect = el.getBoundingClientRect();
+    const styles = getCachedComputedStyle(el);
+
+    // Must be on far left edge (within 50px of left side)
+    if (rect.left > 50) continue;
+
+    // Get actual dimensions
+    const computedWidth = parseFloat(styles.width);
+    const computedHeight = parseFloat(styles.height);
+    const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
+    const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+
+    // Must be sidebar-like width (150-400px)
+    if (actualWidth < 150 || actualWidth > 400) continue;
+
+    // Must have some height (at least 200px)
+    if (actualHeight < 200) continue;
+
+    // Check if this element contains navigation elements
+    const hasNav = el.querySelector('nav, [role="navigation"], a[href], button');
+    const navLinks = el.querySelectorAll('a[href], button');
+    const navLinkCount = navLinks.length;
+
+    // Score based on navigation content + height + semantic naming
+    const classNameStr = String(el.className || '').toLowerCase();
+    const idStr = String(el.id || '').toLowerCase();
+    const hasSidebarName = classNameStr.includes('sidebar') || classNameStr.includes('sidenav') ||
+                          idStr.includes('sidebar') || idStr.includes('sidenav');
+
+    let score = 0;
+    if (hasNav) score += 10;
+    if (navLinkCount > 5) score += navLinkCount * 2;
+    if (hasSidebarName) score += 20;
+    score += actualHeight / 100;
+
+    if (score > 10) {
+      navigationContainers.push({ element: el, height: actualHeight, score });
     }
   }
 
-  // EXTREME Fallback: Use same brute force detection as regions
+  // Choose highest scoring candidate
+  let sidebar: Element | null = null;
+  if (navigationContainers.length > 0) {
+    navigationContainers.sort((a, b) => b.score - a.score);
+    sidebar = navigationContainers[0].element;
+  }
+
+  // STRATEGY 2: Try semantic selectors if viewport strategy failed
   if (!sidebar) {
-    const allElements = Array.from(document.querySelectorAll('*'));
-    const sortedByPosition = allElements.sort((a, b) => {
-      const rectA = a.getBoundingClientRect();
-      const rectB = b.getBoundingClientRect();
-      return rectA.left - rectB.left;
-    });
+    const sidebarCandidates: { element: Element; height: number }[] = [];
 
-    for (const el of sortedByPosition.slice(0, 300)) {
-      const rect = el.getBoundingClientRect();
-      if (rect.width < 50 || rect.height < 50) continue;
+    for (const selector of sidebarSelectors) {
+      const el = document.querySelector(selector);
+      if (el && isVisible(el)) {
+        const rect = el.getBoundingClientRect();
+        const styles = getCachedComputedStyle(el);
+        const computedWidth = parseFloat(styles.width);
+        const computedHeight = parseFloat(styles.height);
+        const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
+        const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
 
-      const styles = getCachedComputedStyle(el);
-      const computedWidth = parseFloat(styles.width);
-      const computedHeight = parseFloat(styles.height);
-      const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
-      const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
+        // Validate it's sidebar-like
+        if (actualWidth > 50 && actualWidth < 600 && actualHeight > 100) {
+          sidebarCandidates.push({ element: el, height: actualHeight });
+        }
+      }
+    }
 
-      if (actualWidth < 150 || actualWidth > 600) continue;
-      if (actualHeight < 200) continue;
-
-      const onLeftEdge = rect.left < 150;
-      const onRightEdge = rect.right > window.innerWidth - 150;
-      if (!onLeftEdge && !onRightEdge) continue;
-
-      sidebar = el;
-      break;
+    // Choose the TALLEST sidebar candidate
+    if (sidebarCandidates.length > 0) {
+      sidebarCandidates.sort((a, b) => b.height - a.height);
+      sidebar = sidebarCandidates[0].element;
     }
   }
 

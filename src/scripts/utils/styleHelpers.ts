@@ -137,8 +137,76 @@ export function parseOKLAB(color: string): { r: number; g: number; b: number } |
 }
 
 /**
+ * Parses an LCH color string and converts it to RGB values.
+ * LCH uses CIE Lab cylindrical coordinates (Lightness, Chroma, Hue).
+ * Note: This is standard LCH, not OKLCH.
+ *
+ * @param color - Color string in LCH format (e.g., "lch(50 30 180)")
+ * @returns Object with RGB components (0-255 range) or null if parsing fails
+ */
+export function parseLCH(color: string): { r: number; g: number; b: number } | null {
+  const match = color.match(/lch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
+  if (!match) return null;
+
+  const L = parseFloat(match[1]);
+  const C = parseFloat(match[2]);
+  const H = parseFloat(match[3]);
+
+  // LCH to Lab
+  const hRad = (H * Math.PI) / 180;
+  const a = C * Math.cos(hRad);
+  const b = C * Math.sin(hRad);
+
+  // Lab to XYZ (D65 illuminant)
+  let fy = (L + 16) / 116;
+  let fx = a / 500 + fy;
+  let fz = fy - b / 200;
+
+  const delta = 6 / 29;
+  const deltaSquared = delta * delta;
+
+  const xr = fx > delta ? fx * fx * fx : 3 * deltaSquared * (fx - 4 / 29);
+  const yr = fy > delta ? fy * fy * fy : 3 * deltaSquared * (fy - 4 / 29);
+  const zr = fz > delta ? fz * fz * fz : 3 * deltaSquared * (fz - 4 / 29);
+
+  // D65 white point
+  const Xn = 0.95047;
+  const Yn = 1.00000;
+  const Zn = 1.08883;
+
+  const X = xr * Xn;
+  const Y = yr * Yn;
+  const Z = zr * Zn;
+
+  // XYZ to linear RGB (sRGB color space)
+  let r = X * 3.2406 + Y * -1.5372 + Z * -0.4986;
+  let g = X * -0.9689 + Y * 1.8758 + Z * 0.0415;
+  let b2 = X * 0.0557 + Y * -0.2040 + Z * 1.0570;
+
+  // Apply gamma correction (linear RGB to sRGB)
+  const gammaCorrect = (c: number) => {
+    if (c <= 0.0031308) {
+      return 12.92 * c;
+    } else {
+      return 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+    }
+  };
+
+  r = gammaCorrect(r);
+  g = gammaCorrect(g);
+  b2 = gammaCorrect(b2);
+
+  // Clamp and convert to 0-255 range
+  r = Math.round(Math.max(0, Math.min(255, r * 255)));
+  g = Math.round(Math.max(0, Math.min(255, g * 255)));
+  b2 = Math.round(Math.max(0, Math.min(255, b2 * 255)));
+
+  return { r, g, b: b2 };
+}
+
+/**
  * Converts any CSS color string to RGB components.
- * Handles multiple color formats: rgb/rgba, hex, oklch, oklab, hsl, and named colors.
+ * Handles multiple color formats: rgb/rgba, hex, oklch, oklab, lch, hsl, and named colors.
  * Uses browser's native color computation for complex formats as a fallback.
  *
  * @param color - CSS color string in any valid format
@@ -147,6 +215,7 @@ export function parseOKLAB(color: string): { r: number; g: number; b: number } |
  * parseColorToRGB("#ff5733"); // Returns { r: 255, g: 87, b: 51 }
  * parseColorToRGB("rgb(255, 87, 51)"); // Returns { r: 255, g: 87, b: 51 }
  * parseColorToRGB("oklch(0.6 0.2 30)"); // Returns { r: ..., g: ..., b: ... }
+ * parseColorToRGB("lch(50 30 180)"); // Returns { r: ..., g: ..., b: ... }
  * parseColorToRGB("transparent"); // Returns { r: 0, g: 0, b: 0 }
  */
 export function parseColorToRGB(color: string): { r: number; g: number; b: number } | null {
@@ -199,7 +268,15 @@ export function parseColorToRGB(color: string): { r: number; g: number; b: numbe
     }
   }
 
-  // Handle hsl and other CSS color formats - try browser conversion
+  // Handle LCH manually (standard CIE LCH, not OKLCH)
+  if (color.includes('lch(') && !color.includes('oklch')) {
+    const result = parseLCH(color);
+    if (result) {
+      return result;
+    }
+  }
+
+  // Handle hsl, lab, and other CSS color formats - try browser conversion
   if (color.includes('hsl') || color.includes('lab')) {
     try {
       // Try Method 1: Use canvas fillStyle (most reliable for color conversion)

@@ -350,6 +350,24 @@ function generateYAML(styles: any): string {
   }
   yaml += `\n`;
 
+  // CSS ARCHITECTURE DETECTION - shows what CSS strategy the site uses
+  if (styles.cssArchitecture) {
+    yaml += `css-architecture:\n`;
+    yaml += `  type: ${styles.cssArchitecture.architecture}\n`;
+    yaml += `  confidence: ${Math.round(styles.cssArchitecture.confidence * 100)}%\n`;
+    if (styles.cssArchitecture.framework) {
+      yaml += `  framework: ${styles.cssArchitecture.framework}\n`;
+    }
+    if (styles.cssArchitecture.indicators && styles.cssArchitecture.indicators.length > 0) {
+      yaml += `  indicators:\n`;
+      styles.cssArchitecture.indicators.slice(0, 5).forEach((indicator: string) => {
+        yaml += `    - "${indicator}"\n`;
+      });
+    }
+    yaml += `  recommendation: "${styles.cssArchitecture.recommendation}"\n`;
+    yaml += `\n`;
+  }
+
   // SEMANTIC LAYOUT - high-level layout description (REPLACES verbose DOM structure)
   if (styles.semanticLayout) {
     yaml += `layout:\n`;
@@ -449,6 +467,80 @@ function generateYAML(styles: any): string {
         yaml += `      css-variable: ${ctx.cssVariable}\n`;
       }
     });
+
+    // COMPONENT-SPECIFIC COLORS - colors extracted per component type
+    if (styles.componentSpecificColors) {
+      yaml += `\n  component-specific-colors:\n`;
+
+      // Buttons
+      if (styles.componentSpecificColors.buttons && styles.componentSpecificColors.buttons.length > 0) {
+        yaml += `    buttons:\n`;
+        styles.componentSpecificColors.buttons.slice(0, 8).forEach((btn: any) => {
+          yaml += `      - variant: ${btn.variant}\n`;
+          yaml += `        count: ${btn.count}\n`;
+
+          if (Object.keys(btn.colors).length > 0) {
+            yaml += `        colors:\n`;
+            if (btn.colors.background && btn.colors.background !== 'rgba(0, 0, 0, 0)') {
+              yaml += `          background: "${btn.colors.background}"\n`;
+            }
+            if (btn.colors.text) yaml += `          text: "${btn.colors.text}"\n`;
+            if (btn.colors.border) yaml += `          border: "${btn.colors.border}"\n`;
+            if (btn.colors.iconFill) yaml += `          icon-fill: "${btn.colors.iconFill}"\n`;
+            if (btn.colors.hoverBackground) yaml += `          hover-background: "${btn.colors.hoverBackground}"\n`;
+            if (btn.colors.hoverBorder) yaml += `          hover-border: "${btn.colors.hoverBorder}"\n`;
+            if (btn.colors.focusBorder) yaml += `          focus-border: "${btn.colors.focusBorder}"\n`;
+          }
+
+          if (btn.measurements) {
+            yaml += `        measurements:\n`;
+            if (btn.measurements.height) yaml += `          height: ${btn.measurements.height}px\n`;
+            if (btn.measurements.minWidth) yaml += `          min-width: ${btn.measurements.minWidth}px\n`;
+            if (btn.measurements.padding) yaml += `          padding: "${btn.measurements.padding}"\n`;
+            if (btn.measurements.borderRadius) yaml += `          border-radius: "${btn.measurements.borderRadius}"\n`;
+            if (btn.measurements.fontSize) yaml += `          font-size: "${btn.measurements.fontSize}"\n`;
+            if (btn.measurements.fontWeight) yaml += `          font-weight: "${btn.measurements.fontWeight}"\n`;
+          }
+        });
+      }
+
+      // Navigation
+      if (styles.componentSpecificColors.navigation && styles.componentSpecificColors.navigation.length > 0) {
+        yaml += `    navigation:\n`;
+        styles.componentSpecificColors.navigation.slice(0, 5).forEach((nav: any) => {
+          yaml += `      - variant: ${nav.variant}\n`;
+          yaml += `        count: ${nav.count}\n`;
+
+          if (Object.keys(nav.colors).length > 0) {
+            yaml += `        colors:\n`;
+            if (nav.colors.background && nav.colors.background !== 'rgba(0, 0, 0, 0)') {
+              yaml += `          background: "${nav.colors.background}"\n`;
+            }
+            if (nav.colors.text) yaml += `          text: "${nav.colors.text}"\n`;
+            if (nav.colors.border) yaml += `          border: "${nav.colors.border}"\n`;
+            if (nav.colors.iconFill) yaml += `          icon-fill: "${nav.colors.iconFill}"\n`;
+          }
+
+          if (nav.measurements) {
+            yaml += `        measurements:\n`;
+            if (nav.measurements.height) yaml += `          height: ${nav.measurements.height}px\n`;
+            if (nav.measurements.padding) yaml += `          padding: "${nav.measurements.padding}"\n`;
+            if (nav.measurements.fontSize) yaml += `          font-size: "${nav.measurements.fontSize}"\n`;
+            if (nav.measurements.fontWeight) yaml += `          font-weight: "${nav.measurements.fontWeight}"\n`;
+          }
+        });
+      }
+
+      // Icons
+      if (styles.componentSpecificColors.icons && styles.componentSpecificColors.icons.length > 0) {
+        yaml += `    icons:\n`;
+        styles.componentSpecificColors.icons.slice(0, 5).forEach((icon: any) => {
+          yaml += `      - count: ${icon.count}\n`;
+          if (icon.colors.iconFill) yaml += `        fill: "${icon.colors.iconFill}"\n`;
+          if (icon.colors.iconStroke) yaml += `        stroke: "${icon.colors.iconStroke}"\n`;
+        });
+      }
+    }
   } else {
     // Fallback to original color extraction if semantic colors not available
     const colorToCssVar = new Map<string, string>();
@@ -632,6 +724,30 @@ function generateYAML(styles: any): string {
       yaml += `      count: ${pattern.count}\n`;
     });
   }
+
+  // Font Weights - semantic weight tokens
+  if (styles.fontWeights && styles.fontWeights.weights && styles.fontWeights.weights.length > 0) {
+    yaml += `\n  font-weights:\n`;
+    styles.fontWeights.weights.forEach((weight: any) => {
+      yaml += `    - value: ${weight.value}\n`;
+      yaml += `      name: ${weight.semanticName}\n`;
+      yaml += `      usage-count: ${weight.usageCount}\n`;
+      if (weight.cssVariable) {
+        yaml += `      css-variable: ${weight.cssVariable}\n`;
+      }
+      if (weight.usedIn && weight.usedIn.length > 0) {
+        yaml += `      used-in: [${weight.usedIn.slice(0, 5).join(', ')}]\n`;
+      }
+    });
+
+    // CSS variable definitions
+    if (styles.fontWeights.cssVariableDefinitions && Object.keys(styles.fontWeights.cssVariableDefinitions).length > 0) {
+      yaml += `\n  font-weight-variables:\n`;
+      Object.entries(styles.fontWeights.cssVariableDefinitions).forEach(([varName, value]) => {
+        yaml += `    ${varName}: ${value}\n`;
+      });
+    }
+  }
   yaml += `\n`;
 
   // Spacing
@@ -673,7 +789,29 @@ function generateYAML(styles: any): string {
 
   // Shadows
   yaml += `shadows:\n`;
-  if (styles.shadows?.elevationLevels) {
+
+  // Use enhanced shadows if available (includes component usage)
+  if (styles.enhancedShadows?.elevationLevels) {
+    yaml += `  pattern: "${styles.enhancedShadows.pattern}"\n`;
+    yaml += `  levels:\n`;
+    styles.enhancedShadows.elevationLevels.forEach((level: any) => {
+      yaml += `    - name: ${level.name.toLowerCase()}\n`;
+      yaml += `      elevation: ${level.elevationLevel}\n`;
+      yaml += `      blur: ${level.shadows[0].blur}px\n`;
+      yaml += `      offset: [${level.shadows[0].offsetX}, ${level.shadows[0].offsetY}]\n`;
+      yaml += `      usage-count: ${level.count}\n`;
+      yaml += `      value: "${level.representative}"\n`;
+
+      // Show which components use this shadow
+      if (level.usedBy && level.usedBy.length > 0) {
+        yaml += `      used-by:\n`;
+        level.usedBy.slice(0, 5).forEach((usage: any) => {
+          yaml += `        - ${usage.componentType} (${usage.count})\n`;
+        });
+      }
+    });
+  } else if (styles.shadows?.elevationLevels) {
+    // Fallback to basic shadows
     yaml += `  pattern: "${styles.shadows.pattern}"\n`;
     yaml += `  levels:\n`;
     styles.shadows.elevationLevels.forEach((level: any) => {
