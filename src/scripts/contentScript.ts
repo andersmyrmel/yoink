@@ -71,6 +71,12 @@ import { analyzeSemanticLayout } from './extraction/semanticLayoutAnalyzer';
 import { analyzeSemanticColors } from './extraction/semanticColorAnalyzer';
 import { extractInteractionPatterns } from './extraction/interactionStateExtractor';
 
+// NEW: Enhanced extraction imports (v2)
+import { detectCSSArchitecture } from './utils/cssArchitectureDetector';
+import { extractComponentSpecificColors } from './extraction/componentSpecificColorExtractor';
+import { extractShadowsWithUsage } from './extraction/enhancedShadowExtractor';
+import { extractFontWeights } from './extraction/fontWeightExtractor';
+
 /**
  * Waits for web fonts to finish loading before extracting styles.
  * This ensures font-family values reflect the actual loaded fonts, not fallbacks.
@@ -152,6 +158,9 @@ function extractStyles(includeComponents: boolean = true): StyleExtraction {
   // Initialize DOM element cache (scans once, reused by all extractors)
   getCachedElements();
 
+  // NEW: Detect CSS architecture first (informs extraction strategy)
+  const cssArchitecture = detectCSSArchitecture();
+
   const cssVariables = extractCSSCustomProperties();
   const colorData = extractColors();
 
@@ -167,7 +176,9 @@ function extractStyles(includeComponents: boolean = true): StyleExtraction {
     icons: extractIcons(),
     gradients: extractGradients(),
     responsive: extractResponsiveBreakpoints(),
-    scrollbars: extractScrollbarStyles()
+    scrollbars: extractScrollbarStyles(),
+    // NEW: CSS architecture detection (always included)
+    cssArchitecture
   };
 
   // Add component patterns and context if requested
@@ -190,6 +201,11 @@ function extractStyles(includeComponents: boolean = true): StyleExtraction {
       cssVariables
     );
     styleData.interactionPatterns = extractInteractionPatterns();
+
+    // NEW: Enhanced extractors (v2) - critical for CSS-in-JS sites
+    styleData.componentSpecificColors = extractComponentSpecificColors();
+    styleData.enhancedShadows = extractShadowsWithUsage();
+    styleData.fontWeights = extractFontWeights();
   }
 
   return styleData;

@@ -929,6 +929,120 @@ export interface InteractionPatterns {
 }
 
 // ============================================================================
+// CSS Architecture Detection Types
+// ============================================================================
+
+/**
+ * CSS architecture type
+ */
+export type CSSArchitecture = 'css-in-js' | 'utility-first' | 'traditional' | 'mixed';
+
+/**
+ * CSS architecture detection result
+ */
+export interface CSSArchitectureInfo {
+  architecture: CSSArchitecture;
+  confidence: number;
+  indicators: string[];
+  framework?: string;
+  recommendation: string;
+}
+
+// ============================================================================
+// Component-Specific Color Types
+// ============================================================================
+
+/**
+ * Color usage for a specific component variant
+ */
+export interface ComponentColorUsage {
+  component: string;
+  variant: string;
+  count: number;
+  colors: {
+    background?: string;
+    text?: string;
+    border?: string;
+    iconFill?: string;
+    iconStroke?: string;
+    hoverBackground?: string;
+    hoverText?: string;
+    hoverBorder?: string;
+    focusBorder?: string;
+    focusOutline?: string;
+  };
+  measurements?: {
+    height?: number;
+    minWidth?: number;
+    padding?: string;
+    borderRadius?: string;
+    borderWidth?: string;
+    fontSize?: string;
+    fontWeight?: string;
+  };
+}
+
+/**
+ * Complete component-specific color extraction
+ */
+export interface ComponentSpecificColors {
+  buttons: ComponentColorUsage[];
+  navigation: ComponentColorUsage[];
+  icons: ComponentColorUsage[];
+  inputs: ComponentColorUsage[];
+  cards: ComponentColorUsage[];
+  allComponentColors: Map<string, number>;
+}
+
+// ============================================================================
+// Enhanced Shadow Types
+// ============================================================================
+
+/**
+ * Shadow with component usage context
+ */
+export interface ShadowWithUsage extends ShadowGroup {
+  usedBy: {
+    componentType: string;
+    selector: string;
+    count: number;
+  }[];
+}
+
+/**
+ * Enhanced shadow system with component context
+ */
+export interface EnhancedShadowSystem {
+  elevationLevels: ShadowWithUsage[];
+  pattern: string;
+  totalUniqueShadows: number;
+  componentUsage: Map<string, string[]>;
+}
+
+// ============================================================================
+// Font Weight Types
+// ============================================================================
+
+/**
+ * Font weight with semantic name and usage
+ */
+export interface FontWeightToken {
+  value: number;
+  semanticName: string;
+  cssVariable?: string;
+  usageCount: number;
+  usedIn: string[];
+}
+
+/**
+ * Complete font weight system
+ */
+export interface FontWeightSystem {
+  weights: FontWeightToken[];
+  cssVariableDefinitions: Record<string, number>;
+}
+
+// ============================================================================
 // Main Extraction Result Type
 // ============================================================================
 
@@ -979,4 +1093,9 @@ export interface StyleExtraction {
   semanticLayout?: SemanticLayout;
   semanticColors?: SemanticColorAnalysis;
   interactionPatterns?: InteractionPatterns;
+  // NEW: Enhanced extractors (v2)
+  cssArchitecture?: CSSArchitectureInfo;
+  componentSpecificColors?: ComponentSpecificColors;
+  enhancedShadows?: EnhancedShadowSystem;
+  fontWeights?: FontWeightSystem;
 }
