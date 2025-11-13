@@ -199,8 +199,8 @@ export function parseColorToRGB(color: string): { r: number; g: number; b: numbe
     }
   }
 
-  // Handle hsl and other CSS color formats - try browser conversion
-  if (color.includes('hsl') || color.includes('lab')) {
+  // Handle hsl, lch, and other CSS color formats - try browser conversion
+  if (color.includes('hsl') || color.includes('lab') || color.includes('lch')) {
     try {
       // Try Method 1: Use canvas fillStyle (most reliable for color conversion)
       try {

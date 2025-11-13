@@ -505,22 +505,38 @@ function extractButtonColors(buttons: Element[]): ComponentColorUsage[] {
  * Identifies navigation elements
  */
 function identifyNavigation(): Element[] {
-  // Strategy 1: Semantic HTML
-  const navLinks = Array.from(document.querySelectorAll('nav a, [role="navigation"] a'));
+  // PRIORITY 1: Sidebar navigation (most important)
+  const sidebarNavigation = Array.from(document.querySelectorAll(
+    'aside a, aside button, ' +
+    '[class*="sidebar"] a, [class*="sidebar"] button, ' +
+    '[class*="sidenav"] a, [class*="sidenav"] button, ' +
+    '[data-sidebar-section-type], ' +
+    'nav[class*="side"] a, nav[class*="side"] button'
+  ));
 
-  // Strategy 2: Data attributes
+  // PRIORITY 2: Explicit navigation data attributes
   const dataNavItems = Array.from(document.querySelectorAll(
-    '[data-nav], [data-navigation], [data-sidebar-section-type]'
+    '[data-nav], [data-navigation]'
   ));
 
-  // Strategy 3: Common navigation patterns
-  const sidebarItems = Array.from(document.querySelectorAll(
-    'aside a, [class*="sidebar"] a, [class*="sidenav"] a'
-  ));
+  // PRIORITY 3: Other navigation (de-prioritized to avoid header/footer noise)
+  // Only include if we don't have enough sidebar items
+  const otherNavLinks = sidebarNavigation.length < 3
+    ? Array.from(document.querySelectorAll('nav a, [role="navigation"] a'))
+    : [];
 
-  const allNav = new Set([...navLinks, ...dataNavItems, ...sidebarItems]);
+  // Prioritize sidebar items
+  const allNav = [...sidebarNavigation, ...dataNavItems, ...otherNavLinks];
 
-  return Array.from(allNav).filter(item => {
+  // Deduplicate while preserving order (sidebar items first)
+  const seen = new Set<Element>();
+  const deduplicated = allNav.filter(item => {
+    if (seen.has(item)) return false;
+    seen.add(item);
+    return true;
+  });
+
+  return deduplicated.filter(item => {
     const styles = getCachedComputedStyle(item);
     if (styles.display === 'none' || styles.visibility === 'hidden') {
       return false;

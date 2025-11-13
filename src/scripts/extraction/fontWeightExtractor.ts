@@ -84,11 +84,29 @@ export function extractFontWeights(): FontWeightSystem {
   const elements = getCachedElements();
   const weightUsage = new Map<number, { count: number; usedIn: Set<string> }>();
 
-  // Sample MORE elements for font weights to capture all variants
-  const sampleSize = Math.min(elements.length, 1000);
+  // PRIORITY 1: Sample text-containing elements (more likely to have varied weights)
+  const textElements = elements.filter(el => {
+    const tagName = el.tagName.toLowerCase();
+    return ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'button', 'div', 'label', 'strong', 'b', 'em'].includes(tagName);
+  });
 
-  for (let i = 0; i < sampleSize; i++) {
-    const element = elements[i];
+  // PRIORITY 2: Sample from different parts of the page (avoid bias toward DOM order)
+  const strategicSample: Element[] = [];
+
+  // Take text elements first (up to 800)
+  strategicSample.push(...textElements.slice(0, Math.min(800, textElements.length)));
+
+  // Then sample other elements evenly from beginning, middle, end (up to 200)
+  if (strategicSample.length < 1000) {
+    const remaining = 1000 - strategicSample.length;
+    const otherElements = elements.filter(el => !textElements.includes(el));
+    const step = Math.max(1, Math.floor(otherElements.length / remaining));
+    for (let i = 0; i < otherElements.length && strategicSample.length < 1000; i += step) {
+      strategicSample.push(otherElements[i]);
+    }
+  }
+
+  for (const element of strategicSample) {
     const styles = getCachedComputedStyle(element);
     const fontWeight = styles.fontWeight;
 

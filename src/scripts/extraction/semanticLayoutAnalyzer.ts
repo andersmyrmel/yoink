@@ -171,7 +171,9 @@ function extractLayoutRegions(): LayoutRegion[] {
     '[id*="sidenav"]:not([aria-hidden="true"])'
   ];
 
-  let sidebar: Element | null = null;
+  // Collect ALL sidebar candidates and choose the tallest one
+  const sidebarCandidates: { element: Element; height: number; width: number }[] = [];
+
   for (const selector of sidebarSelectors) {
     const el = document.querySelector(selector);
     if (el && isVisible(el)) {
@@ -187,10 +189,16 @@ function extractLayoutRegions(): LayoutRegion[] {
       // Validate it's actually sidebar-like (narrow vertical section)
       // More lenient: 50px-600px width, 100px+ height
       if (actualWidth > 50 && actualWidth < 600 && actualHeight > 100) {
-        sidebar = el;
-        break;
+        sidebarCandidates.push({ element: el, height: actualHeight, width: actualWidth });
       }
     }
+  }
+
+  // Choose the TALLEST sidebar candidate (most likely to be the main sidebar)
+  let sidebar: Element | null = null;
+  if (sidebarCandidates.length > 0) {
+    sidebarCandidates.sort((a, b) => b.height - a.height);
+    sidebar = sidebarCandidates[0].element;
   }
 
   // EXTREME Fallback: Brute force find ANY sidebar-like element
@@ -469,7 +477,9 @@ function extractLayoutMeasurements(): LayoutMeasurements {
     '[id*="sidenav"]:not([aria-hidden="true"])'
   ];
 
-  let sidebar: Element | null = null;
+  // Collect ALL sidebar candidates and choose the tallest one (same logic as extractLayoutRegions)
+  const sidebarCandidates: { element: Element; height: number }[] = [];
+
   for (const selector of sidebarSelectors) {
     const el = document.querySelector(selector);
     if (el && isVisible(el)) {
@@ -481,10 +491,16 @@ function extractLayoutMeasurements(): LayoutMeasurements {
       const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
       // Same validation as extractLayoutRegions(): 50-600px width, 100px+ height
       if (actualWidth > 50 && actualWidth < 600 && actualHeight > 100) {
-        sidebar = el;
-        break;
+        sidebarCandidates.push({ element: el, height: actualHeight });
       }
     }
+  }
+
+  // Choose the TALLEST sidebar candidate
+  let sidebar: Element | null = null;
+  if (sidebarCandidates.length > 0) {
+    sidebarCandidates.sort((a, b) => b.height - a.height);
+    sidebar = sidebarCandidates[0].element;
   }
 
   // EXTREME Fallback: Use same brute force detection as regions
