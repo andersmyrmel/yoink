@@ -205,15 +205,9 @@ function extractLayoutRegions(): LayoutRegion[] {
   // This will find it even if nothing else works
   if (!sidebar) {
     const allElements = Array.from(document.querySelectorAll('*'));
+    const fallbackCandidates: { element: Element; height: number }[] = [];
 
-    // Sort by left position (leftmost first) to prioritize left sidebar
-    const sortedByPosition = allElements.sort((a, b) => {
-      const rectA = a.getBoundingClientRect();
-      const rectB = b.getBoundingClientRect();
-      return rectA.left - rectB.left;
-    });
-
-    for (const el of sortedByPosition.slice(0, 300)) {
+    for (const el of allElements.slice(0, 500)) {
       const rect = el.getBoundingClientRect();
 
       // Must have some size
@@ -237,9 +231,14 @@ function extractLayoutRegions(): LayoutRegion[] {
 
       if (!onLeftEdge && !onRightEdge) continue;
 
-      // This is probably a sidebar!
-      sidebar = el;
-      break;
+      // This is probably a sidebar - add to candidates
+      fallbackCandidates.push({ element: el, height: actualHeight });
+    }
+
+    // Choose the TALLEST fallback candidate (same as primary selection)
+    if (fallbackCandidates.length > 0) {
+      fallbackCandidates.sort((a, b) => b.height - a.height);
+      sidebar = fallbackCandidates[0].element;
     }
   }
 
@@ -506,13 +505,9 @@ function extractLayoutMeasurements(): LayoutMeasurements {
   // EXTREME Fallback: Use same brute force detection as regions
   if (!sidebar) {
     const allElements = Array.from(document.querySelectorAll('*'));
-    const sortedByPosition = allElements.sort((a, b) => {
-      const rectA = a.getBoundingClientRect();
-      const rectB = b.getBoundingClientRect();
-      return rectA.left - rectB.left;
-    });
+    const fallbackCandidates: { element: Element; height: number }[] = [];
 
-    for (const el of sortedByPosition.slice(0, 300)) {
+    for (const el of allElements.slice(0, 500)) {
       const rect = el.getBoundingClientRect();
       if (rect.width < 50 || rect.height < 50) continue;
 
@@ -529,8 +524,13 @@ function extractLayoutMeasurements(): LayoutMeasurements {
       const onRightEdge = rect.right > window.innerWidth - 150;
       if (!onLeftEdge && !onRightEdge) continue;
 
-      sidebar = el;
-      break;
+      fallbackCandidates.push({ element: el, height: actualHeight });
+    }
+
+    // Choose the TALLEST fallback candidate
+    if (fallbackCandidates.length > 0) {
+      fallbackCandidates.sort((a, b) => b.height - a.height);
+      sidebar = fallbackCandidates[0].element;
     }
   }
 

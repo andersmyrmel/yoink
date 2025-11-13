@@ -249,36 +249,33 @@ function inferButtonVariant(element: Element): string {
 
 /**
  * Calculates color similarity (0 = identical, higher = more different)
+ * Normalizes both colors to RGB before comparison for accurate distance calculation
  */
 function colorDistance(color1: string | undefined, color2: string | undefined): number {
   if (!color1 || !color2) return color1 === color2 ? 0 : 100;
   if (color1 === color2) return 0;
 
-  // Extract numeric components from any color format
-  const extractComponents = (color: string): number[] => {
-    // Try RGB/RGBA
+  // Normalize both colors to RGB format for consistent comparison
+  const normalized1 = normalizeColor(color1);
+  const normalized2 = normalizeColor(color2);
+
+  // Extract RGB components
+  const extractRGB = (color: string): number[] => {
     const rgbMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
     if (rgbMatch) {
       return [parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3])];
     }
-
-    // Try LCH
-    const lchMatch = color.match(/lch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/);
-    if (lchMatch) {
-      return [parseFloat(lchMatch[1]), parseFloat(lchMatch[2]), parseFloat(lchMatch[3])];
-    }
-
     return [0, 0, 0];
   };
 
-  const c1 = extractComponents(color1);
-  const c2 = extractComponents(color2);
+  const rgb1 = extractRGB(normalized1);
+  const rgb2 = extractRGB(normalized2);
 
-  // Simple Euclidean distance
+  // Euclidean distance in RGB space
   return Math.sqrt(
-    Math.pow(c1[0] - c2[0], 2) +
-    Math.pow(c1[1] - c2[1], 2) +
-    Math.pow(c1[2] - c2[2], 2)
+    Math.pow(rgb1[0] - rgb2[0], 2) +
+    Math.pow(rgb1[1] - rgb2[1], 2) +
+    Math.pow(rgb1[2] - rgb2[2], 2)
   );
 }
 
@@ -289,15 +286,16 @@ function areVariantsSimilar(v1: ComponentColorUsage, v2: ComponentColorUsage): b
   // Must have same semantic variant
   if (v1.variant !== v2.variant) return false;
 
-  // Calculate color distances
+  // Calculate color distances (in RGB space after normalization)
   const bgDist = colorDistance(v1.colors.background, v2.colors.background);
   const textDist = colorDistance(v1.colors.text, v2.colors.text);
   const borderDist = colorDistance(v1.colors.border, v2.colors.border);
 
-  // Thresholds for similarity (tuned for LCH which has different scales)
-  const bgThreshold = 15;  // Allow small variations in background
-  const textThreshold = 15;
-  const borderThreshold = 15;
+  // Thresholds for similarity in RGB space (0-255 scale)
+  // Allow small variations to merge similar but not identical buttons
+  const bgThreshold = 30;  // ~12% difference per channel
+  const textThreshold = 50; // More lenient for text (minor shade differences acceptable)
+  const borderThreshold = 30;
 
   return bgDist < bgThreshold && textDist < textThreshold && borderDist < borderThreshold;
 }
@@ -502,40 +500,29 @@ function extractButtonColors(buttons: Element[]): ComponentColorUsage[] {
 }
 
 /**
- * Identifies navigation elements
+ * Identifies navigation elements - EXCLUSIVELY from sidebar
  */
 function identifyNavigation(): Element[] {
-  // PRIORITY 1: Sidebar navigation (most important)
+  // STRICT: Only sidebar navigation elements
+  // Combine all sidebar selectors and only get interactive elements (a, button)
   const sidebarNavigation = Array.from(document.querySelectorAll(
     'aside a, aside button, ' +
     '[class*="sidebar"] a, [class*="sidebar"] button, ' +
     '[class*="sidenav"] a, [class*="sidenav"] button, ' +
-    '[data-sidebar-section-type], ' +
+    '[id*="sidebar"] a, [id*="sidebar"] button, ' +
+    '[data-sidebar-section-type] a, [data-sidebar-section-type] button, ' +
     'nav[class*="side"] a, nav[class*="side"] button'
   ));
 
-  // PRIORITY 2: Explicit navigation data attributes
-  const dataNavItems = Array.from(document.querySelectorAll(
-    '[data-nav], [data-navigation]'
-  ));
-
-  // PRIORITY 3: Other navigation (de-prioritized to avoid header/footer noise)
-  // Only include if we don't have enough sidebar items
-  const otherNavLinks = sidebarNavigation.length < 3
-    ? Array.from(document.querySelectorAll('nav a, [role="navigation"] a'))
-    : [];
-
-  // Prioritize sidebar items
-  const allNav = [...sidebarNavigation, ...dataNavItems, ...otherNavLinks];
-
-  // Deduplicate while preserving order (sidebar items first)
+  // Deduplicate
   const seen = new Set<Element>();
-  const deduplicated = allNav.filter(item => {
+  const deduplicated = sidebarNavigation.filter(item => {
     if (seen.has(item)) return false;
     seen.add(item);
     return true;
   });
 
+  // Filter out hidden/tiny elements AND elements in header/footer
   return deduplicated.filter(item => {
     const styles = getCachedComputedStyle(item);
     if (styles.display === 'none' || styles.visibility === 'hidden') {
@@ -545,6 +532,20 @@ function identifyNavigation(): Element[] {
     if (rect.width < 10 || rect.height < 10) {
       return false;
     }
+
+    // CRITICAL: Exclude nav links in header/footer (they pollute measurements)
+    const inHeader = item.closest('header, [role="banner"]');
+    const inFooter = item.closest('footer, [role="contentinfo"]');
+    if (inHeader || inFooter) {
+      return false;
+    }
+
+    // Must be in left 40% of viewport (sidebars are typically on the left)
+    const isOnLeft = rect.left < window.innerWidth * 0.4;
+    if (!isOnLeft) {
+      return false;
+    }
+
     return true;
   });
 }
