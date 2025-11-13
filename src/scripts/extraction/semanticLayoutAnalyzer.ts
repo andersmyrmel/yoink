@@ -171,20 +171,20 @@ function extractLayoutRegions(): LayoutRegion[] {
     '[id*="sidenav"]:not([aria-hidden="true"])'
   ];
 
-  // STRATEGY 1: Prioritize full-viewport-height elements on left edge
-  // This catches sidebars that don't match semantic selectors
-  const viewportHeightCandidates: { element: Element; height: number; width: number; score: number }[] = [];
+  // STRATEGY 1: Look for left-edge containers that have navigation elements
+  // This is more reliable than height-based detection for CSS-in-JS layouts
+  const navigationContainers: { element: Element; height: number; width: number; score: number }[] = [];
   const allElements = Array.from(document.querySelectorAll('*'));
 
-  for (const el of allElements.slice(0, 1000)) {
+  for (const el of allElements.slice(0, 1500)) {
     // CRITICAL: Check visibility first to avoid hidden elements
     if (!isVisible(el)) continue;
 
     const rect = el.getBoundingClientRect();
     const styles = getCachedComputedStyle(el);
 
-    // Must be on left edge (within 200px of left side)
-    if (rect.left > 200) continue;
+    // Must be on far left edge (within 50px of left side)
+    if (rect.left > 50) continue;
 
     // Get actual dimensions
     const computedWidth = parseFloat(styles.width);
@@ -192,33 +192,42 @@ function extractLayoutRegions(): LayoutRegion[] {
     const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
     const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
 
-    // Must be sidebar-like width (100-600px)
-    if (actualWidth < 100 || actualWidth > 600) continue;
+    // Must be sidebar-like width (150-400px is more typical for sidebars)
+    if (actualWidth < 150 || actualWidth > 400) continue;
 
-    // Calculate how close to full viewport height (percentage)
-    const heightRatio = actualHeight / window.innerHeight;
+    // Must have some height (at least 200px)
+    if (actualHeight < 200) continue;
 
-    // More lenient: 50% of viewport height (was 70%)
-    // This catches sidebars that don't quite reach full height due to headers/footers
-    if (heightRatio < 0.5) continue;
+    // Check if this element contains navigation elements (strong indicator of sidebar)
+    const hasNav = el.querySelector('nav, [role="navigation"], a[href], button');
+    const navLinks = el.querySelectorAll('a[href], button');
+    const navLinkCount = navLinks.length;
 
-    // Score based on height ratio (prefer taller elements)
-    // Also boost score if element has sidebar-related class/id
+    // Score based on:
+    // 1. Number of navigation links (more = higher score)
+    // 2. Height (taller = higher score)
+    // 3. Has semantic naming (bonus)
     const classNameStr = String(el.className || '').toLowerCase();
     const idStr = String(el.id || '').toLowerCase();
     const hasSidebarName = classNameStr.includes('sidebar') || classNameStr.includes('sidenav') ||
                           idStr.includes('sidebar') || idStr.includes('sidenav');
 
-    const score = heightRatio * (hasSidebarName ? 1.5 : 1.0);
+    let score = 0;
+    if (hasNav) score += 10;
+    if (navLinkCount > 5) score += navLinkCount * 2; // Boost for many nav links
+    if (hasSidebarName) score += 20;
+    score += actualHeight / 100; // Height contributes to score
 
-    viewportHeightCandidates.push({ element: el, height: actualHeight, width: actualWidth, score });
+    if (score > 10) {
+      navigationContainers.push({ element: el, height: actualHeight, width: actualWidth, score });
+    }
   }
 
-  // Choose highest scoring candidate (tallest + semantic naming)
+  // Choose highest scoring candidate (most likely sidebar based on navigation content)
   let sidebar: Element | null = null;
-  if (viewportHeightCandidates.length > 0) {
-    viewportHeightCandidates.sort((a, b) => b.score - a.score);
-    sidebar = viewportHeightCandidates[0].element;
+  if (navigationContainers.length > 0) {
+    navigationContainers.sort((a, b) => b.score - a.score);
+    sidebar = navigationContainers[0].element;
   }
 
   // STRATEGY 2: Try semantic selectors if viewport strategy failed
@@ -500,19 +509,19 @@ function extractLayoutMeasurements(): LayoutMeasurements {
     '[id*="sidenav"]:not([aria-hidden="true"])'
   ];
 
-  // STRATEGY 1: Prioritize full-viewport-height elements on left edge (same as extractLayoutRegions)
-  const viewportHeightCandidates: { element: Element; height: number; score: number }[] = [];
+  // STRATEGY 1: Look for left-edge containers with navigation (same as extractLayoutRegions)
+  const navigationContainers: { element: Element; height: number; score: number }[] = [];
   const allElements = Array.from(document.querySelectorAll('*'));
 
-  for (const el of allElements.slice(0, 1000)) {
+  for (const el of allElements.slice(0, 1500)) {
     // CRITICAL: Check visibility first to avoid hidden elements
     if (!isVisible(el)) continue;
 
     const rect = el.getBoundingClientRect();
     const styles = getCachedComputedStyle(el);
 
-    // Must be on left edge (within 200px of left side)
-    if (rect.left > 200) continue;
+    // Must be on far left edge (within 50px of left side)
+    if (rect.left > 50) continue;
 
     // Get actual dimensions
     const computedWidth = parseFloat(styles.width);
@@ -520,31 +529,39 @@ function extractLayoutMeasurements(): LayoutMeasurements {
     const actualWidth = computedWidth > 0 ? computedWidth : rect.width;
     const actualHeight = computedHeight > 0 ? computedHeight : rect.height;
 
-    // Must be sidebar-like width (100-600px)
-    if (actualWidth < 100 || actualWidth > 600) continue;
+    // Must be sidebar-like width (150-400px)
+    if (actualWidth < 150 || actualWidth > 400) continue;
 
-    // Calculate how close to full viewport height
-    const heightRatio = actualHeight / window.innerHeight;
+    // Must have some height (at least 200px)
+    if (actualHeight < 200) continue;
 
-    // More lenient: 50% of viewport height (was 70%)
-    if (heightRatio < 0.5) continue;
+    // Check if this element contains navigation elements
+    const hasNav = el.querySelector('nav, [role="navigation"], a[href], button');
+    const navLinks = el.querySelectorAll('a[href], button');
+    const navLinkCount = navLinks.length;
 
-    // Score based on height ratio + semantic naming
+    // Score based on navigation content + height + semantic naming
     const classNameStr = String(el.className || '').toLowerCase();
     const idStr = String(el.id || '').toLowerCase();
     const hasSidebarName = classNameStr.includes('sidebar') || classNameStr.includes('sidenav') ||
                           idStr.includes('sidebar') || idStr.includes('sidenav');
 
-    const score = heightRatio * (hasSidebarName ? 1.5 : 1.0);
+    let score = 0;
+    if (hasNav) score += 10;
+    if (navLinkCount > 5) score += navLinkCount * 2;
+    if (hasSidebarName) score += 20;
+    score += actualHeight / 100;
 
-    viewportHeightCandidates.push({ element: el, height: actualHeight, score });
+    if (score > 10) {
+      navigationContainers.push({ element: el, height: actualHeight, score });
+    }
   }
 
   // Choose highest scoring candidate
   let sidebar: Element | null = null;
-  if (viewportHeightCandidates.length > 0) {
-    viewportHeightCandidates.sort((a, b) => b.score - a.score);
-    sidebar = viewportHeightCandidates[0].element;
+  if (navigationContainers.length > 0) {
+    navigationContainers.sort((a, b) => b.score - a.score);
+    sidebar = navigationContainers[0].element;
   }
 
   // STRATEGY 2: Try semantic selectors if viewport strategy failed
