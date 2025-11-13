@@ -17,7 +17,8 @@ import type { ParsedShadow, EnhancedShadowSystem, ShadowWithUsage } from '../typ
  * Detects button variant based on visual characteristics
  */
 function detectButtonVariant(element: Element): string {
-  const className = (element as HTMLElement).className?.toLowerCase() || '';
+  // Safely handle SVGAnimatedString (SVG elements have non-string className)
+  const className = String(element.className || '').toLowerCase();
 
   // Check for explicit variant hints in class names or data attributes
   if (className.includes('primary')) return 'button-primary';
@@ -86,7 +87,8 @@ function detectButtonVariant(element: Element): string {
  */
 function detectComponentType(element: Element): string {
   const tagName = element.tagName.toLowerCase();
-  const className = (element as HTMLElement).className?.toLowerCase() || '';
+  // Safely handle SVGAnimatedString (SVG elements have non-string className)
+  const className = String(element.className || '').toLowerCase();
   const role = element.getAttribute('role');
 
   // Button detection with variant

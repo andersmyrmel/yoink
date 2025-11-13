@@ -169,8 +169,8 @@ function inferButtonVariant(element: Element): string {
     }
   }
 
-  // Check class names for variant hints
-  const className = element.className.toLowerCase();
+  // Check class names for variant hints (safely handle SVGAnimatedString)
+  const className = String(element.className || '').toLowerCase();
   if (className.includes('primary')) return 'primary';
   if (className.includes('secondary')) return 'secondary';
   if (className.includes('danger') || className.includes('destructive')) return 'danger';
