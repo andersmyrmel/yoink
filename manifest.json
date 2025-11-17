@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Yoink",
-  "version": "1.0.0",
-  "description": "Extract any website's design system as YAML and recreate it with AI coding assistants.",
+  "name": "Yoink - Design Token & Style Extractor",
+  "version": "1.0.1",
+  "description": "Extract design tokens, colors, fonts, spacing, and styles from any website and export clean YAML for design systems and AI tools.",
   "permissions": [
     "activeTab",
     "scripting",
