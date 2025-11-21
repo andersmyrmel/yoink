@@ -26,7 +26,7 @@ Yoink is 100% private. All processing happens locally in your browser with zero 
 
 ## Installation
 
-**Chrome Web Store:** Coming soon
+**Chrome Web Store:** [Install Yoink](https://chromewebstore.google.com/detail/yoink-design-token-style/bgdlplmmdmekinbhmmbmmfgpiapmommc)
 
 **From source:**
 
