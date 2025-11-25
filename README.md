@@ -4,7 +4,7 @@
 
 <h1 align="center">Yoink</h1>
 
-<p align="center">Extract any website's design system into structured YAML that you can feed directly to AI coding assistants like Claude.</p>
+<p align="center">A Chrome and Firefox extension that extracts any website's design system into structured YAML that you can feed directly to AI coding assistants like Claude.</p>
 
 ## Why?
 
@@ -26,6 +26,8 @@ Yoink is 100% private. All processing happens locally in your browser with zero 
 
 ## Installation
 
+### Chrome
+
 **Chrome Web Store:** [Install Yoink](https://chromewebstore.google.com/detail/yoink-design-token-style/bgdlplmmdmekinbhmmbmmfgpiapmommc)
 
 **From source:**
@@ -43,6 +45,25 @@ Then in Chrome:
 2. Enable "Developer mode"
 3. Click "Load unpacked"
 4. Select the `dist/` folder
+
+### Firefox
+
+**From source:**
+
+```bash
+git clone https://github.com/andersmyrmel/yoink
+cd yoink
+npm install
+npm run build:firefox
+```
+
+Then in Firefox:
+
+1. Go to `about:debugging#/runtime/this-firefox`
+2. Click "Load Temporary Add-on"
+3. Navigate to the `dist/` folder and select the `manifest.json` file
+
+**Note:** Firefox requires the `build:firefox` command (not `build`) which uses a Firefox-specific manifest. Firefox requires a temporary add-on for development. For a permanent installation, package the extension with `npm run package:firefox` and install the resulting `yoink-firefox.zip` file through Firefox Add-ons (requires signing for production use).
 
 ## License
 
