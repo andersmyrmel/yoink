@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Yoink - Design Token & Style Extractor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Extract design tokens, colors, fonts, spacing, and styles from any website and export clean YAML for design systems and AI tools.",
   "permissions": [
     "activeTab",
