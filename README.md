@@ -35,9 +35,14 @@ Yoink is 100% private. All processing happens locally in your browser with zero 
 ```bash
 git clone https://github.com/andersmyrmel/yoink
 cd yoink
-npm install
+nvm use
+npm run deps:safe-install
 npm run build
 ```
+
+Dependencies are installed with lifecycle scripts disabled, audited against a
+committed exact-version allowlist, and then only reviewed packages are rebuilt.
+See [dependency installation security](docs/dependency-install-security.md).
 
 Then in Chrome:
 
@@ -53,7 +58,8 @@ Then in Chrome:
 ```bash
 git clone https://github.com/andersmyrmel/yoink
 cd yoink
-npm install
+nvm use
+npm run deps:safe-install
 npm run build:firefox
 ```
 

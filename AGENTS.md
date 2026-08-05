@@ -1,57 +1,49 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex when working with code in this repository.
 
 ## Project Overview
 
-Yoink is a cross-browser extension for Chrome and Firefox that extracts design systems from websites and outputs them as structured YAML. The YAML is optimised for AI coding assistants like Claude to understand and replicate design patterns.
+Yoink is a Chrome extension that extracts design systems from websites and outputs them as structured YAML. The YAML is optimized for AI coding assistants like Codex to understand and replicate design patterns.
 
-**Core Purpose**: Allow users to "yoink" a website's design system (colors, typography, spacing, components, animations, etc.) and paste it into Claude to build matching UIs.
+**Core Purpose**: Allow users to "yoink" a website's design system (colors, typography, spacing, components, animations, etc.) and paste it into Codex to build matching UIs.
 
 **Privacy First**: All processing happens locally in the browser. Zero network requests, no data collection, no analytics.
-
-**Browser Support**: The extension uses Manifest V3 and is fully compatible with both Chrome and Firefox (109+). All browser APIs used (`chrome.runtime`, `chrome.tabs`, `chrome.scripting`) are supported identically by both browsers, requiring no compatibility layer. However, Firefox requires a different manifest format for background scripts (using `scripts` array instead of `service_worker`), so separate manifests are maintained for each browser.
 
 ## Build Commands
 
 ```bash
 # Development
 npm run deps:safe-install # Install, audit, and selectively rebuild dependencies
-npm run build           # Full build for Chrome (compile TS → bundle with esbuild → copy assets)
-npm run build:firefox   # Full build for Firefox (uses Firefox-specific manifest)
-npm run dev             # Clean + build + watch mode (Chrome)
-npm run dev:firefox     # Clean + build:firefox + watch mode (Firefox)
-npm run watch           # Watch TypeScript files for changes
+npm run build        # Full build (compile TS → bundle with esbuild → copy assets)
+npm run dev          # Clean + build + watch mode
+npm run watch        # Watch TypeScript files for changes
 
 # Quality checks
-npm run typecheck       # Type check without emitting files
-npm run lint            # Lint TypeScript files
-npm run lint:fix        # Auto-fix linting issues
-npm run check           # Run both typecheck and lint
+npm run typecheck    # Type check without emitting files
+npm run lint         # Lint TypeScript files
+npm run lint:fix     # Auto-fix linting issues
+npm run check        # Run both typecheck and lint
 
 # Production
-npm run clean            # Remove dist directory
-npm run package          # Build and create zip for Chrome Web Store
-npm run package:firefox  # Build and create zip for Firefox Add-ons
+npm run clean        # Remove dist directory
+npm run package      # Build and create zip for Chrome Web Store
 
 # Individual build steps (usually not needed directly)
 npm run compile      # TypeScript compilation only
 npm run bundle       # esbuild bundling only
-npm run copy-assets  # Copy HTML, CSS, icons, Chrome manifest
-npm run copy-assets-firefox  # Copy HTML, CSS, icons, Firefox manifest
+npm run copy-assets  # Copy HTML, CSS, icons, manifest only
 ```
 
 Never use `npm install` or an untargeted `npm rebuild`. Dependency lifecycle
 scripts are disabled by default; see `docs/dependency-install-security.md` for
 the required clean-install sequence and exact-version approval policy.
 
-**Important:** Use `build:firefox` (not `build`) when developing for Firefox, as it uses a different manifest format.
-
 ## Architecture
 
 ### Extension Structure
 
-The extension follows Manifest V3 architecture (compatible with both Chrome and Firefox) with three main contexts:
+The extension follows Chrome Extension Manifest V3 architecture with three main contexts:
 
 1. **Content Script** (`src/scripts/contentScript.ts`)
    - Injected into web pages at `document_idle`
@@ -149,23 +141,12 @@ Key sections in YAML output:
 
 ## Build Process Details
 
-### Browser-Specific Manifests
-
-The project maintains two separate manifest files:
-
-- **`manifest.json`** - Chrome manifest using `service_worker` for background scripts
-- **`manifest.firefox.json`** - Firefox manifest using `scripts` array for background scripts
-
-This is necessary because Firefox's Manifest V3 implementation still requires the `background.scripts` array format, while Chrome requires `background.service_worker`. The build process automatically copies the correct manifest based on the target browser.
-
-### Build Steps
-
 1. **Compile** (`tsc`): TypeScript → JavaScript in `dist/`
 2. **Bundle** (`esbuild`): Three separate bundles to handle different contexts
    - `contentScript.js` - IIFE format (browser environment)
-   - `background.js` - IIFE format (service worker compatible with both browsers)
+   - `background.js` - ESM format (service worker)
    - `popup.js` - IIFE format (browser environment)
-3. **Copy Assets**: HTML, CSS, icons, logo, and browser-specific manifest to `dist/`
+3. **Copy Assets**: HTML, CSS, icons, logo, manifest to `dist/`
 
 The bundling step is critical because it resolves imports and creates single-file bundles that Chrome can load.
 
