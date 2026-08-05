@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "rootLifecycleScripts": {
+    "preinstall": null,
+    "install": null,
+    "postinstall": null,
+    "prepare": null,
+    "prebuild": null,
+    "build": "npm run compile && npm run bundle && npm run copy-assets",
+    "postbuild": null
+  },
+  "approvedDependencies": [
+    {
+      "name": "esbuild",
+      "version": "0.26.0",
+      "scripts": {
+        "postinstall": "node install.js"
+      },
+      "reason": "Required to link and validate esbuild's lockfile-pinned platform binary. The reviewed installer contains npm and HTTPS fallback downloads plus child-process execution, but the rebuild wrapper first requires the matching @esbuild platform package and binary, removes credential-bearing environment variables, forces npm offline, and rebuilds only this exact package. With that preflight satisfied, the normal path only links the local binary and executes it with --version."
+    }
+  ]
+}

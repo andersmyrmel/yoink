@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24.19.0
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 24.19.0
+
+      - name: Verify exact Node.js and npm versions
+        run: node scripts/check-toolchain.mjs
+
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Audit dependency lifecycle scripts
+        run: node scripts/audit-lifecycle-scripts.mjs
+
+      - name: Rebuild reviewed dependencies only
+        run: node scripts/rebuild-approved-dependencies.mjs
+
+      - name: Re-audit dependency lifecycle scripts
+        run: node scripts/audit-lifecycle-scripts.mjs
+
+      - name: Prove unapproved lifecycle scripts fail
+        run: node scripts/test-lifecycle-audit.mjs
+
+      - name: Typecheck and lint
+        run: npm run check
+
+      - name: Build and package extension
+        run: npm run package
+
+      - name: Inspect npm package contents without publishing
+        run: npm pack --dry-run --ignore-scripts
+
+      - name: Check whitespace
+        run: git diff --check

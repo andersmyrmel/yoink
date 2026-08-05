@@ -14,7 +14,7 @@ Yoink is a Chrome extension that extracts design systems from websites and outpu
 
 ```bash
 # Development
-npm install          # Install dependencies
+npm run deps:safe-install # Install, audit, and selectively rebuild dependencies
 npm run build        # Full build (compile TS → bundle with esbuild → copy assets)
 npm run dev          # Clean + build + watch mode
 npm run watch        # Watch TypeScript files for changes
@@ -34,6 +34,10 @@ npm run compile      # TypeScript compilation only
 npm run bundle       # esbuild bundling only
 npm run copy-assets  # Copy HTML, CSS, icons, manifest only
 ```
+
+Never use `npm install` or an untargeted `npm rebuild`. Dependency lifecycle
+scripts are disabled by default; see `docs/dependency-install-security.md` for
+the required clean-install sequence and exact-version approval policy.
 
 ## Architecture
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.1] - 2026-08-05
+
+### Security
+
+- Disable dependency lifecycle scripts during npm installs by default
+- Audit installed dependency scripts against a reviewed exact-version allowlist
+- Rebuild only explicitly approved dependencies after verification
+- Pin the Node.js and npm toolchain used locally and in CI
+
 ## [1.0.0] - 2025-11-10
 
 Initial release of Yoink - Design System Extractor

@@ -1,9 +1,20 @@
 {
   "name": "yoink-design-system-extractor",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "private": true,
   "type": "module",
   "description": "Chrome extension to extract and analyze design system tokens from any website",
+  "engines": {
+    "node": "24.19.0",
+    "npm": "11.17.0"
+  },
+  "packageManager": "npm@11.17.0",
   "scripts": {
+    "deps:check-toolchain": "node scripts/check-toolchain.mjs",
+    "deps:audit": "node scripts/audit-lifecycle-scripts.mjs",
+    "deps:audit:test": "node scripts/test-lifecycle-audit.mjs",
+    "deps:rebuild": "node scripts/rebuild-approved-dependencies.mjs",
+    "deps:safe-install": "node scripts/check-toolchain.mjs && npm ci --ignore-scripts --no-audit --no-fund && node scripts/audit-lifecycle-scripts.mjs && node scripts/rebuild-approved-dependencies.mjs && node scripts/audit-lifecycle-scripts.mjs",
     "build": "npm run compile && npm run bundle && npm run copy-assets",
     "compile": "tsc",
     "typecheck": "tsc --noEmit",
