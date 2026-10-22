@@ -20,10 +20,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Use Node.js 24.19.0
+      - name: Use Node.js 24.22.1
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
-          node-version: 24.19.0
+          node-version: 24.22.1
+
+      - name: Enable pinned npm
+        run: corepack enable npm && corepack prepare npm@11.17.0 --activate
 
       - name: Verify exact Node.js and npm versions
         run: node scripts/check-toolchain.mjs
