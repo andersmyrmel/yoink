@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Browser extension for Chrome and Firefox to extract and analyze design system tokens from any website",
   "engines": {
-    "node": "24.19.0",
+    "node": "24.22.1",
     "npm": "11.17.0"
   },
   "packageManager": "npm@11.17.0",

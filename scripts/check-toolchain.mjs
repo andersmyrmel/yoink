@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const EXPECTED_NODE = '24.19.0';
+const EXPECTED_NODE = '24.22.1';
 const EXPECTED_NPM = '11.17.0';
 
 const packageJson = JSON.parse(
